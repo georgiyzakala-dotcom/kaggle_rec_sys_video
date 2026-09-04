@@ -1,0 +1,47 @@
+{
+  "task07_artifact": "artifacts/task07_ranker_dataset_v1",
+  "task06_rrf_artifact": "artifacts/task06_candidate_ensemble_v1",
+  "folds": {
+    "train": "rolling_2",
+    "early_stopping": "rolling_3",
+    "canonical": "canonical"
+  },
+  "row_sampling": {
+    "train_negative_keep_probability": 0.1,
+    "eval_negative_keep_probability": 0.1,
+    "seed": 42,
+    "weighting": "inverse_sampling_probability"
+  },
+  "pool": {
+    "border_count": 16,
+    "feature_border_type": "GreedyLogSum",
+    "quantization_task_type": "CPU",
+    "thread_count": 4
+  },
+  "catboost": {
+    "config_id": "pointwise_gpu_smoke",
+    "loss_function": "Logloss",
+    "eval_metric": "Logloss",
+    "iterations": 20,
+    "depth": 4,
+    "learning_rate": 0.2,
+    "l2_leaf_reg": 3.0,
+    "border_count": 16,
+    "random_seed": 42,
+    "task_type": "GPU",
+    "devices": "0",
+    "thread_count": 4,
+    "early_stopping_rounds": 5,
+    "metric_period": 2,
+    "gpu_ram_part": 0.5,
+    "boosting_type": "Plain",
+    "bootstrap_type": "Bernoulli",
+    "subsample": 0.8,
+    "snapshot_interval_seconds": 30
+  },
+  "inference": {
+    "batch_size": 32768,
+    "final_k": 20
+  },
+  "seed": 42
+}

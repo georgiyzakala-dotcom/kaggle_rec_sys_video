@@ -1,0 +1,10 @@
+.agents
+.codex
+.ruff_cache
+.venv
+artifacts/*
+catboost_info
+data/*
+experiments/*
+logs/*
+__pycache__/

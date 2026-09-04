@@ -1,0 +1,42 @@
+{
+  "ablation": {
+    "directions": ["undirected", "directed"],
+    "min_pair_users": [1, 2, 3],
+    "neighbor_k": [50, 100, 200],
+    "normalizations": ["raw", "cosine", "jaccard"],
+    "pair_weights": ["uniform", "time_distance"],
+    "profiles": ["all", "positive"],
+    "seed_k": [3, 5, 10],
+    "seed_recency_half_life_hours": [null, 6, 24, 72],
+    "seed_strengths": ["uniform", "event_strength"]
+  },
+  "base_config": {
+    "config_id": "base",
+    "direction": "undirected",
+    "history_cap": 10,
+    "min_pair_users": 1,
+    "neighbor_k": 100,
+    "normalization": "raw",
+    "pair_half_life_hours": 24,
+    "pair_weight": "uniform",
+    "profile": "all",
+    "seed_k": 5,
+    "seed_recency_half_life_hours": 24,
+    "seed_strength": "uniform"
+  },
+  "candidate_k": 200,
+  "fallback_score_type": "relevant_interaction_count",
+  "final_k": 20,
+  "folds": {
+    "canonical": "artifacts/task01_canonical_data_v1",
+    "selection": [
+      "artifacts/task02_fold_20241129_v1",
+      "artifacts/task02_fold_20241130_v1",
+      "artifacts/task02_fold_20241201_v1"
+    ]
+  },
+  "predict_batch_size": 256,
+  "seed": 42,
+  "task02_artifact": "artifacts/task02_global_popularity_v1",
+  "task03_artifact": "artifacts/task03_recency_popularity_v1"
+}

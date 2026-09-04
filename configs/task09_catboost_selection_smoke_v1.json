@@ -1,0 +1,101 @@
+{
+  "task07_artifact": "artifacts/task07_ranker_dataset_v1",
+  "task06_rrf_artifact": "artifacts/task06_candidate_ensemble_v1",
+  "task08_artifact": "artifacts/task08_catboost_pointwise_v1",
+  "fold_pairs": [
+    {
+      "pair_id": "wf_r1_r2",
+      "train_fold": "rolling_1",
+      "eval_fold": "rolling_2",
+      "pool_cache": "artifacts/.task09_catboost_selection_smoke_v1.pool_r1_r2"
+    },
+    {
+      "pair_id": "wf_r2_r3",
+      "train_fold": "rolling_2",
+      "eval_fold": "rolling_3",
+      "pool_cache": "artifacts/.task09_catboost_selection_smoke_v1.pool_r2_r3"
+    }
+  ],
+  "negative_pool_caches": {
+    "wf_r1_r2": "artifacts/.task09_catboost_selection_smoke_v1.train_r1_neg025",
+    "wf_r2_r3": "artifacts/.task09_catboost_selection_smoke_v1.train_r2_neg025"
+  },
+  "row_sampling": {
+    "eval_negative_keep_probability": 0.25,
+    "weighting": "inverse_sampling_probability"
+  },
+  "pool": {
+    "border_count": 32,
+    "feature_border_type": "GreedyLogSum",
+    "quantization_task_type": "CPU",
+    "thread_count": 4
+  },
+  "feature_sets": {
+    "all": {
+      "ignored_features": []
+    }
+  },
+  "baseline": {
+    "config_id": "smoke_logloss",
+    "train_negative_keep_probability": 1.0,
+    "feature_set": "all",
+    "catboost": {
+      "config_id": "smoke_logloss",
+      "loss_function": "Logloss",
+      "eval_metric": "Logloss",
+      "iterations": 6,
+      "depth": 4,
+      "learning_rate": 0.2,
+      "l2_leaf_reg": 3.0,
+      "border_count": 32,
+      "random_seed": 42,
+      "task_type": "GPU",
+      "devices": "0",
+      "thread_count": 4,
+      "early_stopping_rounds": 3,
+      "metric_period": 1,
+      "gpu_ram_part": 0.5,
+      "boosting_type": "Plain",
+      "bootstrap_type": "Bernoulli",
+      "subsample": 0.8,
+      "bagging_temperature": null,
+      "random_strength": 1.0,
+      "scale_pos_weight": 1.0,
+      "ignored_features": [],
+      "snapshot_interval_seconds": 1
+    }
+  },
+  "search": {
+    "primary_metric": "precision_at_20_labeled_users",
+    "secondary_metric": "precision_at_20_all_targets",
+    "tie_epsilon": 0.000001,
+    "max_unique_configs": 2,
+    "stages": [
+      {
+        "stage_id": "loss_smoke",
+        "challengers": [
+          {
+            "config_id": "smoke_cross_entropy",
+            "overrides": {
+              "catboost": {
+                "loss_function": "CrossEntropy",
+                "eval_metric": "CrossEntropy",
+                "scale_pos_weight": 1.0
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "canonical": {
+    "fold": "canonical",
+    "latest_pair_id": "wf_r2_r3",
+    "evaluate_config_count": 1
+  },
+  "inference": {
+    "batch_size": 32768,
+    "final_k": 20
+  },
+  "seed": 42
+}

@@ -1,0 +1,246 @@
+{
+  "task07_artifact": "artifacts/task07_ranker_dataset_v1",
+  "task06_rrf_artifact": "artifacts/task06_candidate_ensemble_v1",
+  "task08_artifact": "artifacts/task08_catboost_pointwise_v1",
+  "task09_artifact": "artifacts/task09_catboost_selection_v1",
+  "fold_pairs": [
+    {
+      "pair_id": "wf_r1_r2",
+      "train_fold": "rolling_1",
+      "eval_fold": "rolling_2",
+      "pool_cache": "artifacts/task10_catboost_grouped_pools_r1_r2_v1",
+      "borders_source": "artifacts/task09_catboost_pools_r1_r2_base_v1/borders.tsv"
+    },
+    {
+      "pair_id": "wf_r2_r3",
+      "train_fold": "rolling_2",
+      "eval_fold": "rolling_3",
+      "pool_cache": "artifacts/task10_catboost_grouped_pools_r2_r3_v1",
+      "borders_source": "artifacts/task08_catboost_pools_v1/borders.tsv"
+    }
+  ],
+  "pool": {
+    "border_count": 32,
+    "quantization_task_type": "CPU",
+    "thread_count": 8,
+    "eval_group_count": 16384,
+    "eval_group_seed": 42
+  },
+  "objective_stage": {
+    "stage_id": "objective_family",
+    "profiles": [
+      {
+        "config_id": "s10_qsm_beta_1",
+        "catboost": {
+          "config_id": "s10_qsm_beta_1",
+          "loss_function": "QuerySoftMax:beta=1",
+          "eval_metric": "PrecisionAt:top=20;border=0",
+          "custom_metric": [
+            "NDCG:top=20;type=Base;denominator=LogPosition"
+          ],
+          "iterations": 1200,
+          "depth": 7,
+          "learning_rate": 0.08,
+          "l2_leaf_reg": 3.0,
+          "border_count": 32,
+          "random_seed": 42,
+          "task_type": "GPU",
+          "devices": "0",
+          "thread_count": 8,
+          "early_stopping_rounds": 100,
+          "metric_period": 20,
+          "gpu_ram_part": 0.8,
+          "boosting_type": "Plain",
+          "bootstrap_type": "Bernoulli",
+          "subsample": 0.8,
+          "sampling_unit": "Object",
+          "random_strength": 1.0,
+          "group_weighting": "unit",
+          "snapshot_interval_seconds": 60
+        }
+      },
+      {
+        "config_id": "s11_yeti_classic",
+        "catboost": {
+          "config_id": "s11_yeti_classic",
+          "loss_function": "YetiRankPairwise:mode=Classic;permutations=10;decay=0.85",
+          "eval_metric": "PrecisionAt:top=20;border=0",
+          "custom_metric": [
+            "NDCG:top=20;type=Base;denominator=LogPosition"
+          ],
+          "iterations": 600,
+          "depth": 7,
+          "learning_rate": 0.08,
+          "l2_leaf_reg": 3.0,
+          "border_count": 32,
+          "random_seed": 42,
+          "task_type": "GPU",
+          "devices": "0",
+          "thread_count": 8,
+          "early_stopping_rounds": 100,
+          "metric_period": 20,
+          "gpu_ram_part": 0.8,
+          "boosting_type": "Plain",
+          "bootstrap_type": "Bernoulli",
+          "subsample": 0.5,
+          "sampling_unit": "Group",
+          "random_strength": null,
+          "group_weighting": "unit",
+          "snapshot_interval_seconds": 60
+        }
+      }
+    ]
+  },
+  "objective_exclusions": [
+    {
+      "objective": "QueryCrossEntropy",
+      "status": "excluded_before_full_run",
+      "reason": "catboost_1_2_10_gpu_max_query_size_256",
+      "smoke_train_max_group_size": 273,
+      "smoke_eval_max_group_size": 709
+    }
+  ],
+  "inherited_stages": [
+    {
+      "stage_id": "objective_alignment",
+      "challengers": [
+        {
+          "config_id": "s20_objective_top_focus",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "loss_function": "QuerySoftMax:beta=2"
+            },
+            "YetiRankPairwise": {
+              "loss_function": "YetiRankPairwise:mode=Classic;permutations=10;decay=0.70"
+            }
+          }
+        },
+        {
+          "config_id": "s21_objective_smooth",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "loss_function": "QuerySoftMax:beta=0.5"
+            },
+            "YetiRankPairwise": {
+              "loss_function": "YetiRankPairwise:mode=Classic;permutations=10;decay=0.95"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "stage_id": "capacity",
+      "challengers": [
+        {
+          "config_id": "s30_depth_6",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "depth": 6,
+              "learning_rate": 0.08,
+              "iterations": 1600
+            },
+            "YetiRankPairwise": {
+              "depth": 6,
+              "learning_rate": 0.08,
+              "iterations": 800
+            }
+          }
+        },
+        {
+          "config_id": "s31_learning_rate_004",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "depth": 7,
+              "learning_rate": 0.04,
+              "iterations": 2400,
+              "early_stopping_rounds": 120
+            },
+            "YetiRankPairwise": {
+              "depth": 7,
+              "learning_rate": 0.04,
+              "iterations": 1200,
+              "early_stopping_rounds": 120
+            }
+          }
+        }
+      ]
+    },
+    {
+      "stage_id": "regularization_group_weighting",
+      "challengers": [
+        {
+          "config_id": "s40_l2_leaf_reg_10",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "l2_leaf_reg": 10.0
+            },
+            "YetiRankPairwise": {
+              "l2_leaf_reg": 10.0
+            }
+          }
+        },
+        {
+          "config_id": "s41_group_weight_positive_mass",
+          "family_overrides": {
+            "QuerySoftMax": {
+              "group_weighting": "inverse_positive_count"
+            },
+            "YetiRankPairwise": {
+              "group_weighting": "inverse_positive_count"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "search": {
+    "primary_metric": "precision_at_20_labeled_users",
+    "secondary_metric": "precision_at_20_all_targets",
+    "tie_epsilon": 0.000001,
+    "max_unique_configs": 8
+  },
+  "pointwise_comparator": {
+    "config_id": "s12_pos_weight_16",
+    "artifact": "artifacts/task09_catboost_selection_v1",
+    "profile_sha256": "49d9c765af3764ce08fb2d049dfa63ff7c019fdc5aa8307bc6e96967ba3b7971",
+    "fold_results": [
+      {
+        "pair_id": "wf_r1_r2",
+        "precision_at_20_all_targets": 0.006811573204364683,
+        "precision_at_20_labeled_users": 0.008443259512485137,
+        "final_hits": 27267,
+        "tree_count": 486,
+        "runtime_seconds": 290.964494124004,
+        "physical_runtime_seconds": 290.964494124004
+      },
+      {
+        "pair_id": "wf_r2_r3",
+        "precision_at_20_all_targets": 0.00694122466925137,
+        "precision_at_20_labeled_users": 0.008608020025279437,
+        "final_hits": 27786,
+        "tree_count": 688,
+        "runtime_seconds": 352.398132808994,
+        "physical_runtime_seconds": 352.398132808994
+      }
+    ]
+  },
+  "canonical": {
+    "fold": "canonical",
+    "latest_pair_id": "wf_r2_r3",
+    "evaluate_config_count": 1
+  },
+  "inference": {
+    "batch_size": 65536,
+    "final_k": 20
+  },
+  "resources": {
+    "catboost_version": "1.2.10",
+    "cpu_thread_limit": 8,
+    "max_rss_budget_gib": 50,
+    "min_available_ram_gib": 40,
+    "min_free_disk_gib": 420,
+    "min_gpu_count": 1,
+    "min_gpu_memory_mib": 15000
+  },
+  "seed": 42
+}

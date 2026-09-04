@@ -1,0 +1,20 @@
+{
+  "candidate_k": 200,
+  "final_k": 20,
+  "folds": {
+    "canonical": "artifacts/task01_canonical_data_v1",
+    "selection": [
+      "artifacts/task02_fold_20241129_v1",
+      "artifacts/task02_fold_20241130_v1",
+      "artifacts/task02_fold_20241201_v1"
+    ]
+  },
+  "predict_batch_size": 2048,
+  "score_types": [
+    "raw_interaction_count",
+    "distinct_interacting_users",
+    "relevant_interaction_count",
+    "distinct_relevant_users"
+  ],
+  "seed": 42
+}

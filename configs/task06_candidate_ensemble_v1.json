@@ -1,0 +1,130 @@
+{
+  "candidate_k": 200,
+  "folds": {
+    "canonical": "artifacts/task01_canonical_data_v1",
+    "selection": [
+      "artifacts/task02_fold_20241129_v1",
+      "artifacts/task02_fold_20241130_v1",
+      "artifacts/task02_fold_20241201_v1"
+    ]
+  },
+  "materialized_union": {
+    "source_caps": {
+      "global_popularity": 200,
+      "recency_popularity": 200,
+      "item2item": 200,
+      "implicit_als": 200
+    },
+    "total_cap": 800
+  },
+  "predict_batch_sizes": {
+    "global_popularity": 2048,
+    "recency_popularity": 2048,
+    "item2item": 256,
+    "implicit_als": 128
+  },
+  "pretrained_models": {
+    "canonical": {
+      "global_popularity": "artifacts/task02_global_popularity_v1",
+      "implicit_als": "artifacts/task05_implicit_als_v1",
+      "item2item": "artifacts/task04_item2item_v1",
+      "recency_popularity": "artifacts/task03_recency_popularity_v1"
+    },
+    "rolling_3": {
+      "implicit_als": {
+        "pointer": "artifacts/.task05_implicit_als_v1.best-model/best_model.json"
+      }
+    }
+  },
+  "rrf_ablation": {
+    "cap_profiles": [
+      {
+        "global_popularity": 75,
+        "implicit_als": 75,
+        "item2item": 75,
+        "name": "balanced_300",
+        "recency_popularity": 75,
+        "total_cap": 300
+      },
+      {
+        "global_popularity": 100,
+        "implicit_als": 100,
+        "item2item": 100,
+        "name": "balanced_400",
+        "recency_popularity": 100,
+        "total_cap": 400
+      },
+      {
+        "global_popularity": 50,
+        "implicit_als": 200,
+        "item2item": 200,
+        "name": "collaborative_500",
+        "recency_popularity": 50,
+        "total_cap": 500
+      },
+      {
+        "global_popularity": 150,
+        "implicit_als": 150,
+        "item2item": 150,
+        "name": "balanced_600",
+        "recency_popularity": 150,
+        "total_cap": 600
+      },
+      {
+        "global_popularity": 200,
+        "implicit_als": 200,
+        "item2item": 200,
+        "name": "oracle_diagnostic_800",
+        "recency_popularity": 200,
+        "total_cap": 800
+      }
+    ],
+    "eligible_winner_max_cap": 600,
+    "rrf_constants": [20, 60, 100],
+    "weight_profiles": [
+      {
+        "global_popularity": 1.0,
+        "implicit_als": 1.0,
+        "item2item": 1.0,
+        "name": "equal",
+        "recency_popularity": 1.0
+      },
+      {
+        "global_popularity": 0.5,
+        "implicit_als": 2.0,
+        "item2item": 1.0,
+        "name": "als_heavy",
+        "recency_popularity": 0.5
+      },
+      {
+        "global_popularity": 0.5,
+        "implicit_als": 1.0,
+        "item2item": 2.0,
+        "name": "item2item_heavy",
+        "recency_popularity": 0.5
+      },
+      {
+        "global_popularity": 0.5,
+        "implicit_als": 1.0,
+        "item2item": 1.0,
+        "name": "personalized_heavy",
+        "recency_popularity": 0.5
+      },
+      {
+        "global_popularity": 1.0,
+        "implicit_als": 1.0,
+        "item2item": 1.0,
+        "name": "recency_heavy",
+        "recency_popularity": 2.0
+      }
+    ]
+  },
+  "seed": 42,
+  "users_per_shard": 2048,
+  "winner_artifacts": {
+    "task02": "artifacts/task02_global_popularity_v1",
+    "task03": "artifacts/task03_recency_popularity_v1",
+    "task04": "artifacts/task04_item2item_v1",
+    "task05": "artifacts/task05_implicit_als_v1"
+  }
+}

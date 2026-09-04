@@ -1,0 +1,212 @@
+{
+  "baseline_artifact": "artifacts/task02_global_popularity_v1",
+  "candidate_k": 200,
+  "fallback_score_type": "relevant_interaction_count",
+  "final_k": 20,
+  "folds": {
+    "canonical": "artifacts/task01_canonical_data_v1",
+    "selection": [
+      "artifacts/task02_fold_20241129_v1",
+      "artifacts/task02_fold_20241130_v1",
+      "artifacts/task02_fold_20241201_v1"
+    ]
+  },
+  "half_lives_hours": [6, 24, 72],
+  "model_configs": [
+    {
+      "config_id": "window_raw_6h",
+      "score_kind": "window",
+      "signal": "raw_views",
+      "window_hours": 6
+    },
+    {
+      "config_id": "window_raw_24h",
+      "score_kind": "window",
+      "signal": "raw_views",
+      "window_hours": 24
+    },
+    {
+      "config_id": "window_raw_72h",
+      "score_kind": "window",
+      "signal": "raw_views",
+      "window_hours": 72
+    },
+    {
+      "config_id": "window_raw_full",
+      "score_kind": "window",
+      "signal": "raw_views",
+      "window_hours": null
+    },
+    {
+      "config_id": "window_positive_6h",
+      "score_kind": "window",
+      "signal": "positive_daily_rows",
+      "window_hours": 6
+    },
+    {
+      "config_id": "window_positive_24h",
+      "score_kind": "window",
+      "signal": "positive_daily_rows",
+      "window_hours": 24
+    },
+    {
+      "config_id": "window_positive_72h",
+      "score_kind": "window",
+      "signal": "positive_daily_rows",
+      "window_hours": 72
+    },
+    {
+      "config_id": "window_positive_full",
+      "score_kind": "window",
+      "signal": "positive_daily_rows",
+      "window_hours": null
+    },
+    {
+      "config_id": "decay_raw_6h",
+      "half_life_hours": 6,
+      "score_kind": "decay",
+      "signal": "raw_views"
+    },
+    {
+      "config_id": "decay_raw_24h",
+      "half_life_hours": 24,
+      "score_kind": "decay",
+      "signal": "raw_views"
+    },
+    {
+      "config_id": "decay_raw_72h",
+      "half_life_hours": 72,
+      "score_kind": "decay",
+      "signal": "raw_views"
+    },
+    {
+      "config_id": "decay_positive_6h",
+      "half_life_hours": 6,
+      "score_kind": "decay",
+      "signal": "positive_daily_rows"
+    },
+    {
+      "config_id": "decay_positive_24h",
+      "half_life_hours": 24,
+      "score_kind": "decay",
+      "signal": "positive_daily_rows"
+    },
+    {
+      "config_id": "decay_positive_72h",
+      "half_life_hours": 72,
+      "score_kind": "decay",
+      "signal": "positive_daily_rows"
+    },
+    {
+      "config_id": "trend_raw_6h_24h_s10",
+      "long_window_hours": 24,
+      "score_kind": "trending",
+      "short_window_hours": 6,
+      "signal": "raw_views",
+      "smoothing": 10
+    },
+    {
+      "config_id": "trend_raw_6h_24h_s100",
+      "long_window_hours": 24,
+      "score_kind": "trending",
+      "short_window_hours": 6,
+      "signal": "raw_views",
+      "smoothing": 100
+    },
+    {
+      "config_id": "trend_raw_24h_72h_s10",
+      "long_window_hours": 72,
+      "score_kind": "trending",
+      "short_window_hours": 24,
+      "signal": "raw_views",
+      "smoothing": 10
+    },
+    {
+      "config_id": "trend_raw_24h_72h_s100",
+      "long_window_hours": 72,
+      "score_kind": "trending",
+      "short_window_hours": 24,
+      "signal": "raw_views",
+      "smoothing": 100
+    },
+    {
+      "config_id": "trend_positive_6h_24h_s10",
+      "long_window_hours": 24,
+      "score_kind": "trending",
+      "short_window_hours": 6,
+      "signal": "positive_daily_rows",
+      "smoothing": 10
+    },
+    {
+      "config_id": "trend_positive_6h_24h_s100",
+      "long_window_hours": 24,
+      "score_kind": "trending",
+      "short_window_hours": 6,
+      "signal": "positive_daily_rows",
+      "smoothing": 100
+    },
+    {
+      "config_id": "trend_positive_24h_72h_s10",
+      "long_window_hours": 72,
+      "score_kind": "trending",
+      "short_window_hours": 24,
+      "signal": "positive_daily_rows",
+      "smoothing": 10
+    },
+    {
+      "config_id": "trend_positive_24h_72h_s100",
+      "long_window_hours": 72,
+      "score_kind": "trending",
+      "short_window_hours": 24,
+      "signal": "positive_daily_rows",
+      "smoothing": 100
+    },
+    {
+      "config_id": "blend_raw_short_heavy",
+      "score_kind": "window_blend",
+      "signal": "raw_views",
+      "window_weights": [
+        {"weight": 0.5, "window_hours": 6},
+        {"weight": 0.3, "window_hours": 24},
+        {"weight": 0.15, "window_hours": 72},
+        {"weight": 0.05, "window_hours": null}
+      ]
+    },
+    {
+      "config_id": "blend_raw_balanced",
+      "score_kind": "window_blend",
+      "signal": "raw_views",
+      "window_weights": [
+        {"weight": 0.25, "window_hours": 6},
+        {"weight": 0.35, "window_hours": 24},
+        {"weight": 0.25, "window_hours": 72},
+        {"weight": 0.15, "window_hours": null}
+      ]
+    },
+    {
+      "config_id": "blend_positive_short_heavy",
+      "score_kind": "window_blend",
+      "signal": "positive_daily_rows",
+      "window_weights": [
+        {"weight": 0.5, "window_hours": 6},
+        {"weight": 0.3, "window_hours": 24},
+        {"weight": 0.15, "window_hours": 72},
+        {"weight": 0.05, "window_hours": null}
+      ]
+    },
+    {
+      "config_id": "blend_positive_balanced",
+      "score_kind": "window_blend",
+      "signal": "positive_daily_rows",
+      "window_weights": [
+        {"weight": 0.25, "window_hours": 6},
+        {"weight": 0.35, "window_hours": 24},
+        {"weight": 0.25, "window_hours": 72},
+        {"weight": 0.15, "window_hours": null}
+      ]
+    }
+  ],
+  "predict_batch_size": 2048,
+  "seed": 42,
+  "windows_hours": [6, 24, 72]
+}

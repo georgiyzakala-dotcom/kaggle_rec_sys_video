@@ -1,0 +1,32 @@
+{
+  "task06_artifact": "artifacts/task06_candidate_datasets_v1",
+  "fold_order": [
+    "rolling_1",
+    "rolling_2",
+    "rolling_3",
+    "canonical"
+  ],
+  "history_features": {
+    "windows_hours": [6, 24, 72],
+    "trend_windows_hours": [6, 24]
+  },
+  "negative_sampling": {
+    "seed": 42,
+    "easy_negative_probability": 0.05,
+    "hard_negative_rank": 50,
+    "collaborative_sources": [
+      "item2item",
+      "implicit_als"
+    ],
+    "keep_multisource": true
+  },
+  "union_rank_sources": [
+    "item2item",
+    "implicit_als"
+  ],
+  "parquet": {
+    "compression": "zstd",
+    "compression_level": 3
+  },
+  "seed": 42
+}
