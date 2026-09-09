@@ -814,7 +814,14 @@ class ImplicitALSModel(CandidateModel):
                 )
             ids = np.asarray(ids)
             scores = np.asarray(scores)
-            valid = (ids >= 0) & np.isfinite(scores)
+            # implicit may return seen IDs with finite -FLT_MAX scores when
+            # fewer than k unseen items exist. Exclude them explicitly.
+            valid = (
+                (ids >= 0)
+                & (ids < item_count)
+                & np.isfinite(scores)
+                & ~np.isin(ids, user_items.indices)
+            )
             ids = ids[valid].astype(np.int64, copy=False)
             scores = scores[valid].astype(np.float32, copy=False)
             if not len(ids):

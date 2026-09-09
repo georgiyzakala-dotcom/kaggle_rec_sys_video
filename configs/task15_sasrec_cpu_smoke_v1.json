@@ -1,0 +1,57 @@
+{
+  "kind": "sasrec_training_benchmark",
+  "run_id": "task15_sasrec_cpu_smoke_v1",
+  "mode": "smoke",
+  "fold": "rolling_1",
+  "seed": 42,
+  "device": "cpu",
+  "gpu_id": 0,
+  "precision": "float32",
+  "cpu_threads": 2,
+  "data": {
+    "fold_artifact": "artifacts/task02_fold_20241129_v1",
+    "context_user_limit": 256,
+    "preserve_full_catalog": false
+  },
+  "model": {
+    "embedding_dim": 8,
+    "num_heads": 2,
+    "num_blocks": 2,
+    "dropout": 0.1,
+    "max_length": 8,
+    "initialization_std": 0.02,
+    "use_input_layer_norm": false
+  },
+  "training": {
+    "epochs": 2,
+    "batch_size": 16,
+    "negative_count": 8,
+    "query_chunk_size": 64,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "gradient_clip_norm": 1.0,
+    "max_users": 32
+  },
+  "retrieval_probe": {
+    "users": 8,
+    "batch_size": 4,
+    "item_chunk_size": 1024,
+    "candidate_k": 20
+  },
+  "resources": {
+    "maximum_rss_gib": 10,
+    "minimum_available_ram_gib": 4,
+    "stop_available_ram_gib": 4,
+    "cuda_memory_fraction": 0.75,
+    "minimum_free_vram_mib": 10000,
+    "stop_free_vram_mib": 2048,
+    "epoch_arrays_gib": 1,
+    "maximum_run_disk_gib": 2,
+    "minimum_free_disk_gib": 5,
+    "stop_free_disk_gib": 2,
+    "windows_drive": "/mnt/g",
+    "windows_minimum_start_free_gib": 55,
+    "windows_stop_free_gib": 50,
+    "poll_seconds": 1
+  }
+}

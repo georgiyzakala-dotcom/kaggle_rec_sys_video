@@ -7,7 +7,7 @@ import math
 import os
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from numbers import Integral, Real
 from pathlib import Path
 from typing import Any, Final
@@ -86,6 +86,9 @@ def validate_feature_columns(columns: Sequence[str]) -> tuple[str, ...]:
         "is_training_sample",
         "sampling_probability",
         "sample_weight",
+        "fold_id",
+        "sampling_stratum",
+        "full_sampling_probability",
     }
     overlap = forbidden.intersection(result)
     if overlap:
@@ -777,6 +780,11 @@ class CatBoostPointwiseModel(RankerModel):
         if loader.feature_columns != self._feature_columns:
             raise ContractValidationError("loader feature order differs from model")
         batch_size = kwargs.pop("batch_size", None)
+        tree_count = kwargs.pop("tree_count", None)
+        if tree_count is not None:
+            tree_count = _positive_int(tree_count, name="tree_count")
+            if tree_count > self.tree_count:
+                raise ValueError("tree_count exceeds the fitted model")
         if kwargs:
             raise TypeError(f"unsupported predict arguments: {sorted(kwargs)}")
         outputs: list[pl.DataFrame] = []
@@ -786,7 +794,12 @@ class CatBoostPointwiseModel(RankerModel):
                 num_feature_names=list(self._feature_columns),
             )
             score = np.asarray(
-                self._model.predict(data, prediction_type="RawFormulaVal"),
+                self._model.predict(
+                    data,
+                    prediction_type="RawFormulaVal",
+                    ntree_end=tree_count or 0,
+                    thread_count=self._config.thread_count,
+                ),
                 dtype=np.float64,
             ).reshape(-1)
             outputs.append(
@@ -804,6 +817,80 @@ class CatBoostPointwiseModel(RankerModel):
             else pl.DataFrame(schema=RANKER_OUTPUT_SCHEMA)
         )
         validate_ranker_output(result)
+        return result
+
+    def with_tree_count(self, tree_count: int) -> CatBoostPointwiseModel:
+        """Copy a fitted prefix selected externally, without another fit."""
+
+        count = _positive_int(tree_count, name="tree_count")
+        if self._model is None:
+            raise RuntimeError("model is not fitted")
+        if count > self.tree_count:
+            raise ValueError("tree_count exceeds the fitted model")
+        result = CatBoostPointwiseModel(
+            replace(self._config, iterations=count),
+            feature_columns=self._feature_columns,
+        )
+        result._model = self._model.copy()
+        result._model.shrink(ntree_end=count)
+        result._best_iteration_override = count - 1
+        # The original fit's score is not the score of an externally chosen prefix.
+        result._best_score_override = {}
+        return result
+
+    def predict_checkpoints(
+        self,
+        loader: CatBoostRankerDataLoader,
+        *,
+        tree_counts: Sequence[int],
+        batch_size: int = 65_536,
+    ) -> dict[int, pl.DataFrame]:
+        """Score multiple prefixes in one staged pass over each numerical batch."""
+        if self._model is None:
+            raise RuntimeError("model is not fitted")
+        counts = tuple(_positive_int(n, name="tree_count") for n in tree_counts)
+        if (
+            not counts
+            or list(counts) != sorted(set(counts))
+            or counts[-1] > self.tree_count
+        ):
+            raise ValueError("tree_counts must be sorted unique fitted prefixes")
+        if loader.feature_columns != self.feature_columns:
+            raise ContractValidationError("loader feature order differs from model")
+        step = math.gcd(*counts)
+        outputs: dict[int, list[pl.DataFrame]] = {n: [] for n in counts}
+        for batch in loader.iter_predict_batches(batch_size=batch_size):
+            data = FeaturesData(
+                num_feature_data=batch.features,
+                num_feature_names=list(self.feature_columns),
+            )
+            staged = self._model.staged_predict(
+                data,
+                prediction_type="RawFormulaVal",
+                ntree_end=counts[-1],
+                eval_period=step,
+                thread_count=self._config.thread_count,
+            )
+            for index, score in enumerate(staged, start=1):
+                count = index * step
+                if count in outputs:
+                    outputs[count].append(
+                        pl.DataFrame(
+                            {
+                                "user_id": pl.Series(batch.user_ids, dtype=pl.UInt64),
+                                "item_id": pl.Series(batch.item_ids, dtype=pl.Int32),
+                                "ranker_score": pl.Series(
+                                    np.asarray(score).reshape(-1), dtype=pl.Float64
+                                ),
+                            }
+                        )
+                    )
+        result = {}
+        for count, parts in outputs.items():
+            result[count] = (
+                pl.concat(parts) if parts else pl.DataFrame(schema=RANKER_OUTPUT_SCHEMA)
+            )
+            validate_ranker_output(result[count])
         return result
 
     def get_feature_importance(self) -> pl.DataFrame:

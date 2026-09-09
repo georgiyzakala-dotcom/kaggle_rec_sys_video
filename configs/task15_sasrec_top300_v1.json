@@ -1,0 +1,27 @@
+{
+  "device": "cuda",
+  "gpu_id": 0,
+  "cpu_threads": 8,
+  "resources": {
+    "cuda_memory_fraction": 0.75,
+    "epoch_arrays_gib": 8,
+    "maximum_rss_gib": 40,
+    "maximum_run_disk_gib": 30,
+    "minimum_available_ram_gib": 16,
+    "minimum_free_disk_gib": 40,
+    "minimum_free_vram_mib": 10000,
+    "poll_seconds": 2,
+    "stop_available_ram_gib": 4,
+    "stop_free_disk_gib": 10,
+    "stop_free_vram_mib": 2048,
+    "windows_drive": "/mnt/g",
+    "windows_minimum_start_free_gib": 80,
+    "windows_stop_free_gib": 50
+  },
+  "kind": "sasrec_top300_evaluation",
+  "run_id": "task15_sasrec_top300_v1",
+  "mode": "full",
+  "fold": "all",
+  "parent_artifact": "artifacts/task15_sasrec_folds_v1",
+  "parent_manifest_sha256": "f1735dd7bf1205f49ae42470946af9c6d9ebd818c19bc5a2eff69b3daa2e2207"
+}

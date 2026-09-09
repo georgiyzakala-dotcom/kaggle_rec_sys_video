@@ -1,0 +1,105 @@
+{
+  "kind": "task14_profile_full_fit",
+  "run_id": "task14_full_fit_v1",
+  "mode": "full",
+  "seed": 42,
+  "paths": {
+    "task07_dataset": "artifacts/task07_ranker_dataset_v1",
+    "task08_borders": "artifacts/task08_catboost_pools_v1/borders.tsv",
+    "task06_dataset": "artifacts/task06_candidate_datasets_v1",
+    "task12_reference": "artifacts/task12_ranker_backtest_v1",
+    "train": "data/train.parquet",
+    "target_users": "data/target_user_ids.parquet",
+    "winner_artifacts": {
+      "task02": "artifacts/task02_global_popularity_v1",
+      "task03": "artifacts/task03_recency_popularity_v1",
+      "task04": "artifacts/task04_item2item_v1",
+      "task05": "artifacts/task05_implicit_als_v1"
+    },
+    "task13_reference": "artifacts/task13_history_profiles_v1",
+    "submission_schema_reference": "artifacts/task11_full_fit_v1/submission_schema.json"
+  },
+  "training": {
+    "target_rows": 30000000,
+    "fold_order": [
+      "rolling_1",
+      "rolling_2",
+      "rolling_3",
+      "canonical"
+    ]
+  },
+  "quantization": {
+    "policies": [
+      "fit_training"
+    ],
+    "border_count": 32,
+    "feature_border_type": "GreedyLogSum"
+  },
+  "catboost": {
+    "config_id": "task14_full_fit_D_all",
+    "loss_function": "Logloss",
+    "eval_metric": "Logloss",
+    "iterations": 1030,
+    "depth": 7,
+    "learning_rate": 0.08,
+    "l2_leaf_reg": 3.0,
+    "border_count": 32,
+    "random_seed": 42,
+    "task_type": "GPU",
+    "devices": "0",
+    "thread_count": 8,
+    "metric_period": 20,
+    "gpu_ram_part": 0.7,
+    "boosting_type": "Plain",
+    "bootstrap_type": "Bernoulli",
+    "subsample": 0.8,
+    "random_strength": 1.0,
+    "scale_pos_weight": 1.0,
+    "ignored_features": [],
+    "snapshot_interval_seconds": 60
+  },
+  "inference": {
+    "batch_size": 65536,
+    "final_k": 20
+  },
+  "resources": {
+    "minimum_free_disk_gib": 110,
+    "stop_free_disk_gib": 15,
+    "minimum_available_ram_gib": 38,
+    "stop_available_ram_gib": 4,
+    "maximum_rss_gib": 40,
+    "minimum_free_vram_mib": 13000,
+    "stop_free_vram_mib": 2048,
+    "maximum_dsv_gib": 60,
+    "windows_drive": "/mnt/g",
+    "windows_minimum_start_free_gib": 160,
+    "windows_stop_free_gib": 50,
+    "poll_seconds": 2
+  },
+  "smoke": {
+    "user_count": null
+  },
+  "variant": "D_all",
+  "candidates": {
+    "source_candidate_k": 200,
+    "materialized_total_cap": 800,
+    "users_per_shard": 2048,
+    "predict_batch_sizes": {
+      "global_popularity": 2048,
+      "recency_popularity": 2048,
+      "item2item": 256,
+      "implicit_als": 128
+    }
+  },
+  "features": {
+    "windows_hours": [
+      6.0,
+      24.0,
+      72.0
+    ],
+    "trend_windows_hours": [
+      6.0,
+      24.0
+    ]
+  }
+}

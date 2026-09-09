@@ -1,0 +1,60 @@
+{
+  "kind": "task12_ranker_backtest",
+  "run_id": "task12_ranker_backtest_v1",
+  "mode": "full",
+  "seed": 42,
+  "paths": {
+    "task07_dataset": "artifacts/task07_ranker_dataset_v1",
+    "task08_model": "artifacts/task08_catboost_pointwise_v1/model",
+    "task08_borders": "artifacts/task08_catboost_pools_v1/borders.tsv"
+  },
+  "protocol": {
+    "selection_train_folds": ["rolling_1", "rolling_2"],
+    "selection_eval_fold": "rolling_3",
+    "canonical_train_folds": ["rolling_1", "rolling_2", "rolling_3"],
+    "canonical_eval_fold": "canonical"
+  },
+  "training": {"target_rows": 46000000},
+  "quantization": {
+    "policies": ["frozen_task08", "fit_training"],
+    "border_count": 32,
+    "feature_border_type": "GreedyLogSum"
+  },
+  "selection": {
+    "user_count": 16384,
+    "tree_counts": [100, 200, 400, 600, 800, 1000, 1030, 1200, 1400],
+    "fixed_tree_count": 1030
+  },
+  "catboost": {
+    "config_id": "task12_pointwise",
+    "loss_function": "Logloss",
+    "eval_metric": "Logloss",
+    "iterations": 1400,
+    "depth": 7,
+    "learning_rate": 0.08,
+    "l2_leaf_reg": 3.0,
+    "border_count": 32,
+    "random_seed": 42,
+    "task_type": "GPU",
+    "devices": "0",
+    "thread_count": 8,
+    "metric_period": 20,
+    "gpu_ram_part": 0.85,
+    "boosting_type": "Plain",
+    "bootstrap_type": "Bernoulli",
+    "subsample": 0.8,
+    "random_strength": 1.0,
+    "scale_pos_weight": 1.0,
+    "ignored_features": [],
+    "snapshot_interval_seconds": 60
+  },
+  "inference": {"batch_size": 65536, "final_k": 20},
+  "resources": {
+    "minimum_free_disk_gib": 140.0,
+    "minimum_available_ram_gib": 40.0,
+    "minimum_free_vram_mib": 12000,
+    "maximum_dsv_gib": 75.0,
+    "cleanup_training_cache_on_success": true
+  },
+  "smoke": {"user_count": null}
+}

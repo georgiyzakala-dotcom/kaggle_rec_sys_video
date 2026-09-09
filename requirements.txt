@@ -4,3 +4,8 @@ polars==1.44.1
 implicit==0.7.3
 tqdm==4.70.0
 catboost==1.2.10
+# SASRec CUDA build verified on the existing RTX 5070 Ti environment.
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.13.0+cu130
+# Sequential SASRec hyperparameter selection and persistent SQLite study.
+optuna==4.9.0

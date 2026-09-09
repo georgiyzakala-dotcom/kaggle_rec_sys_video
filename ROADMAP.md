@@ -994,15 +994,229 @@ pointwise GBDT.
 
 ---
 
+## Задача 12 `[x]`: backtest обучения ранкера после аудита
+
+Полный расчёт выполнен пользователем и независимо проверен 2026-09-05.
+Инструкция: `RANKER_BACKTEST.md`. Исходная команда (artifact защищён от overwrite):
+
+```bash
+./scripts/run_task12_ranker_backtest.sh configs/task12_ranker_backtest_v1.json
+```
+
+### Объём и критерии готовности
+
+- Переиспользовать Task07 candidates/features, разделить изменения retrieval
+  и обучения ranker.
+- Сравнить строгие frozen borders с train-only borders, явно ограниченные 32.
+- Сохранить positives и учесть оба sampling stages в inverse weights.
+- Train rolling_1+rolling_2; выбрать quantization/tree count по P@20 на полных
+  candidate lists ID-sampled users rolling_3. Хранить все checkpoint metrics,
+  в том числе для fixed 1,030 trees, и reference Task08 на тех же users.
+- Сохранить winner до canonical; refit на rolling_1+rolling_2+rolling_3,
+  один canonical report с обоими denominators и сравнением с Task08.
+- Progress/ETA, bounded timestamped logs, atomic operation checkpoints,
+  CatBoost snapshots, portable best model, strict resume и запрет overwrite.
+- После full run проверить artifact и решить, есть ли основание менять
+  production recipe. Smoke не является подтверждением улучшения.
+
+### Подготовлено
+
+- `ranker_backtest.py`, `scripts/run_ranker_backtest.py`,
+  `scripts/run_task12_ranker_backtest.sh`, два configs и unit tests.
+- Prefix/staged inference в `rankers.py`; отдельный
+  `research/12_ranker_training_backtest.ipynb` читает готовые результаты.
+- 142 tests прошли; CPU real-data smoke на 64 users/12 trees прошёл с
+  pause/resume и независимой проверкой portable model/top-20/metrics.
+- Независимый CPU repeat точно повторил рекомендации/curves; bounded GPU
+  smoke с depth 7 также прошёл вместе с portable `--verify-only`.
+- `artifacts/task12_ranker_backtest_smoke_v1/`: smoke P@20 all/labeled
+  `0.0023437500000000003 / 0.003488372093023256`; это не full score.
+
+### Результат full run
+
+- `task12_ranker_backtest_v1`, winner `fit_training`, 1,030 trees, canonical
+  P@20 all/labeled `0.005007444342299852 / 0.006816357898745886`, 20,045 hits.
+  +877 hits (+4.5753%) к Task08; новый best validation baseline.
+- Rolling_3 full: P@20 all/labeled
+  `0.006979445621327792 / 0.00865541896949119`, +272 hits; вне selection
+  sample +242 hits. Все comparisons используют тот же candidate union.
+- Fresh против frozen при 1,030 trees: +28 hits на selection users; лучшие
+  точки policies отличаются на 11 hits. Canonical прирост нельзя целиком
+  приписывать borders: также изменились training folds и sampling.
+- Канонический refit дал по 32 borders для user 72h shares; модель использует
+  11/12 границ вместо 1/1 у Task08. Увеличение до 1,400 trees улучшает Logloss,
+  но уменьшает P@20. Старые 1,030 trees выбраны снова.
+- Full runtime 82.84 min, peak RSS 45.97 GiB; 142 tests, все 27 checksums,
+  portable probe, full top-20 semantics и обе метрики независимо проверены.
+- Review: `artifacts/task12_review_20260905_v1/findings.md`. Bootstrap по
+  пользователям подтверждает положительную разницу на фиксированном canonical
+  дне; перенос на другой день/GPU seed/leaderboard этим не проверяется.
+- Submission Task11 пока не изменён. Candidate recall остаётся 10.70%,
+  использовано 14.6003% доступных oracle hits.
+
+Следующие этапы после результатов Task12: candidate-conditioned history
+features и точные last-event/subdaily aggregates; затем source-depth
+recall/oracle curves для решения о расширении или замене candidate models.
+
+---
+
+## Task13 — ALS-профили истории [x]
+
+- Реализовано: `history_profiles.py`, `scripts/run_history_profiles.py`,
+  `scripts/task13_resources.py`, full/smoke configs, shell launcher,
+  `research/13_history_profiles.ipynb`, tests и `HISTORY_PROFILES.md`.
+- 20 скаляров, четыре ablations A_base/B_positive/C_events/D_all; old201 features
+  и Task07 candidates сохранены. Mean unit vectors, unique history items;
+  positive/like/favorite/watch_time>60. Координаты embeddings не передаются.
+- Общий train-only quantized Pool для A/B/C/D, 32 borders, 30m expected training
+  rows, IPW, fixed1030trees. Selection на всех rolling_3 target users;
+  canonical winner и matched A_base оцениваются после freeze.
+- External resource supervisor, progress/ETA, bounded logs, atomic checkpoints
+  и portable best-model pointer, resume и защита completed outputs готовы.
+- Проверены 158 tests, Ruff/help/bash syntax, CPU pause/resume, точный CPU repeat,
+  GPU smoke64users/12trees/depth7; full run завершён пользователем.
+- Проверен и удалён восстановимый Task11 cache70.31GiB. Для возврата места G:
+  требуется ручное сжатие WSL VHDX по `DISK_CLEANUP.md`. Task05 rolling best model
+  сохранён: он нужен Task06/Task13.
+- Команда: `./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+  Фактически74.41min, peakRSS31.62GiB. CPU8, RAM RSS40GiB, gpu_ram_part0.70,
+  G:start160GiB/stop50GiB. Full artifact: `artifacts/task13_history_profiles_v1/`.
+- Новый best D_all: P20all/labeled0.005077640992845437/0.006911912728855518,
+  20326hits. +281hits/+1.4018% к Task12, +543hits/+2.7448% к matched A_base30m.
+  Rolling_3 A/B/C/D:28035/29077/29069/29095hits. Отрыв D от B мал (18hits).
+- Публикация первоначально упала на1ULP rounding mismatch. Исправлен verifier
+  (точные integer counts +32ULP для float), добавлен `--publish-only`.
+  Artifact восстановлен без переобучения и новых predictions; training hashes
+  не переписаны, recovery metadata сохранены отдельно. CSV содержит одну строку.
+- Полные checksums/portable/top20/обе P20 winner+control и rolling comparison
+  проверены: `artifacts/task13_publication_review_20260905_v1/metrics.json`.
+  Далее — segment analysis и точные recent-history features; candidates остаются
+  отдельным направлением (recall10.70%). Submission Task11 пока прежний.
+
+---
+
+## Task14 — полный refit лучшего D_all и новый submission [~]
+
+- Подготовлены `full_history_profiles.py`, `scripts/run_profile_full_fit.py`,
+  full/smoke configs, `scripts/run_task14_full_fit.sh`, tests,
+  `PROFILE_FULL_FIT.md`, `research/14_full_fit_history_profiles.ipynb`.
+- Новый CatBoost обучается с нуля на всех четырёх supervised folds, включая
+  canonical:221features,1030trees,fresh32borders,30m expected sampled rows,
+  все positives и IPW. Fold profiles используют только fold-local ALS/history.
+- Все4production candidate models обучаются заново на общей полной raw history;
+  заново строятся lookups, ALS profiles, candidates и final top20.
+- Atomic per-fold/source/shard checkpoints, CatBoost snapshots, native heartbeat,
+  progress/ETA, resource supervisor с прежними RAM/GPU budgets, publish-only.
+- 165tests; CPU64users/12trees end-to-end, остановка после первого shard/resume,
+  независимый CPU repeat с одинаковым CSV, no-fit staging recovery проверены.
+  GPU smoke64users/12trees/depth7 и отдельный verify всех3artifacts также прошли.
+- Full run запускает пользователь:
+  `./scripts/run_task14_full_fit.sh configs/task14_full_fit_v1.json`.
+  Ожидаемый результат:`artifacts/task14_full_fit_v1/submission.csv`.
+  Ориентир1.5–2.5h, peakRSS около32GiB при потолке40GiB.
+- Пока Task14full не выполнен; best validation остаётся Task13, опубликованный
+  competition submission — Task11. Full-fit P20 отсутствует (null), прежние
+  измеренные метрики сохраняются отдельно как validation_reference.
+- Завершить после полного запуска, проверки CSV/всех источников и анализа
+  пользовательского leaderboard результата; runner ничего не загружает на Kaggle.
+
+---
+
+## Задача 15 `[~]`: SASRec candidates, rolling recall и пересечение с ALS
+
+План подготовлен 2026-09-07: [SASREC_PLAN.md](SASREC_PLAN.md).
+GPU benchmark выполнен пользователем: [SASREC_BENCHMARK.md](SASREC_BENCHMARK.md).
+Optuna завершена: [SASREC_OPTUNA.md](SASREC_OPTUNA.md).
+Полное frozen сравнение и top600 inference выполнены пользователем и проверены:
+[SASREC_FOLDS.md](SASREC_FOLDS.md), [SASREC_TOP600.md](SASREC_TOP600.md).
+Команда воспроизведения top600: `./scripts/run_task15_sasrec_top600.sh`.
+По уточнению пользователя: сначала одно обучение для замера скорости, затем
+Optuna на rolling_1 с target следующего дня; после выбора recipe — остальные
+rolling и требуемые candidate metrics. Новое обучение не требуется. Гипотеза пользователя:
+SASRec увеличит покрытие позитивов в candidates для ранкера; по incremental
+hits и стоимости выбрать ALS, SASRec или обе модели.
+
+- Готово: padding/NaN fixes, last-valid selection, padding initialization,
+  tied item embeddings и sampled loss без полного catalog logits.
+- Готово: SASRecDataLoader/CandidateModel и portable artifacts на обычном
+  PyTorch с immutable daily history. На этапе сравнения переиспользовать
+  готовые Task06 sources без повторного fit.
+- Optuna runner готов:24trials/max12epochs/8192ID-only eval users, TPE/MedianPruner,
+  early stopping, SQLite/atomic epoch resume и best portable model. Objective —
+  equal-budget800 union recall delta, cold/empty-history users не исключаются.
+  Пользовательский search завершён:24trials/17977.06s. Trial12/epoch12 frozen;
+  blend150/50 delta recall=-0.0008428261, add_source1000 delta=0.0180812537
+  на8192target IDs rolling_1. Прежний pruning bug исправлен и study восстановлена;
+  audit: `artifacts/task15_optuna_pruning_fix_v1/`.
+- Готов launcher `./scripts/run_task15_sasrec_folds.sh`: reuse rolling_1 winner,
+  fresh12epochs на rolling_2/rolling_3/canonical, полные target universes,
+  source curves/overlap, frozen policy800 и ALS400 control1000 без ALS fit.
+  Atomic epoch/shard/fold resume; полный запуск завершён за11846,36s и проверен.
+  CPU tests и GPU smoke двух фолдов пройдены, GPU repeat детерминирован;
+  audit: `artifacts/task15_folds_preflight_v1/`.
+- Полные recall/overlap/P20 получены. Canonical: SASRec200 recall5.3030%,
+  ALS2006.7426%, baseline union10.7002%, оба20013.2489%, ALS40014.0035%.
+  ALS400 сильнее двух моделей200 при бюджете1000 во всех четырёх фолдах;
+  frozen blend150/50 при800 также не улучшает recall. SASRec добавляет32728
+  новых canonical hits; ALS сохраняет42149 уникальных hits сверх прочих+SASRec.
+- Top300 остановлен по запросу пользователя:97готовых блоков rolling_1,
+  без полного результата. Подготовлен новый top600 runner для обеих моделей,
+  с prefix-метриками200/300/400/600 и контролем ALS600 vs ALS300/SASRec300
+  при бюджете1200. Полный запуск завершён за7822,41s (около2ч10мин).
+  Tests28, GPU smoke4x2048users/120,40s; аудит `artifacts/task15_top600_preflight_v1/`.
+  Full artifact verifier и независимый пересчёт recall прошли. Оба600+3x200:
+  rolling_1/2/3/canonical recall15.9119%/18.5140%/21.5761%/21.4281%.
+  Canonical275169hits из1284148positives, mean1442.35unique candidates;
+  +105034hits против обоих200. При бюджете1200 ALS600-only сильнее обоих300
+  во всех4folds (canonical16.6682% против15.7282%).
+  Audit: `artifacts/task15_top600_recall_review_v1/`.
+  Пользователь выбрал оба600+остальные200 для нового ranker backtest/submission.
+  Готов `./scripts/run_task15_sasrec_ranker.sh`, config `task15_sasrec_ranker_v1.json`,
+  инструкция `SASREC_RANKER.md`: D_all221+SASRec11features, три1030-treefits
+  (r1+r2->r3, r1+r2+r3->canonical, все4->future), ~30Mtrainingrows/fit,
+  positive-preserving uniform sampling/IPW, training-only fresh borders.
+  Готовые full-history четыре sources Task14 переиспользуются; SASRec full
+  обучается12epochs. GPU smoke16users/12trees/1epoch32trainingusers прошёл
+  за263.96s, RSS6.95GiB/VRAM6175MiB, CSV semantics и portable verify passed.
+  Bounded256-user timing даёт ориентир6–9часов full run; полный запуск
+  выполняет пользователь. Task15 остаётся `[~]` до full P20 и решения о promotion.
+- Для перспективного варианта — matched Task13 ranker backtest, обе P20 и
+  ресурсы. Разделить удаление ALS generator и полный отказ от ALS features/
+  history profiles; высокий standalone recall не является критерием замены.
+- Benchmark preflight завершён:38tests, Ruff/help/bash syntax, limited CPU/GPU
+  smokes, atomic epoch pause/resume, точный independent repeat. Итоговый GPU
+  smoke на полном словаре:15–16ms/step, torch peak1.66GiB; это не полный epoch.
+  Отчёт:`artifacts/task15_benchmark_preflight_v1/metrics.json`.
+- Полный пользовательский benchmark164.83s/3epochs,49.77s/epoch с подготовкой,
+  RSS2.89GiB; portable verifier прошёл. Опирающийся на него Optuna preflight:
+  45tests, CPU epoch pause/resume, GPU trial pause/resume d128/L100/full catalog,
+  torch peak3.28GiB/device5550MiB. Отчёт:`artifacts/task15_optuna_preflight_v1`.
+
+Review artifact: `artifacts/task15_sasrec_review_v1/`. На CPU воспроизведено
+распространение NaN в двух присланных attention blocks при left padding;
+подтверждены reference paths всех16fold/source combinations. Новый encoder/loader/
+runner реализуют исправления, sampled loss, epoch checkpoints и bounded retrieval.
+Полная оценка @200 на всех target users четырёх фолдов записана в results.csv.
+Расширение @600 также записано четырьмя full-run rows; planning review и smokes
+не добавляются в results.csv.
+
+Уточнение состояния входов: Task14 full artifact/submission уже существуют,
+CSV SHA совпал с metrics. Старый `[~]` выше отражает предыдущий handoff;
+полный повторный semantic review Task14 не входит в Task15 planning.
+Validation baseline — Task13 D_all, P20all/labeled
+`0.005077640992845437 / 0.006911912728855518`, union recall `0.107002463890455`.
+
+---
+
 ## Отложенные эксперименты
 
 Эти модели не начинать до завершения основного каскада и анализа его ошибок.
 Каждая из них также требует отдельного Codex-окна, отдельного `.py`-класса и
 отдельного notebook:
 
-- `research/12_implicit_bpr.ipynb` — BPR на той же sparse matrix;
-- `research/13_lightgcn.ipynb` — graph collaborative retrieval;
-- `research/14_sequence_model.ipynb` — SASRec/GRU-like retrieval;
+- BPR на той же sparse matrix (номер отдельного notebook назначить при старте);
+- LightGCN — graph collaborative retrieval;
+- GRU-like retrieval (SASRec вынесен в задачу 15);
 - user clustering и segment-specific popularity;
 - sparse top-k SLIM-like model, только после оценки вычислительной стоимости.
 

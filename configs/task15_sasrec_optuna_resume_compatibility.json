@@ -1,0 +1,9 @@
+{
+  "transitions": [
+    {
+      "from_sha256": "0244de8222aefd3bd813325a7fc43918f36286cd4a80f7d5cc73823ab24633cf",
+      "to_sha256": "a814f5ded9eb05651ea09ac2ecb797f3f191acb0875e60d67d57436a50d136d5",
+      "reason": "Fix Optuna tell for PRUNED/FAIL; preserve original training, sampling, evaluation, budgets and checkpoint digests."
+    }
+  ]
+}

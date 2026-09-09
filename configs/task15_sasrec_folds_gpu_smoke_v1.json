@@ -1,0 +1,54 @@
+{
+  "seed": 42,
+  "device": "cuda",
+  "gpu_id": 0,
+  "precision": "bfloat16",
+  "cpu_threads": 2,
+  "resources": {
+    "maximum_rss_gib": 40,
+    "minimum_available_ram_gib": 4,
+    "stop_available_ram_gib": 4,
+    "cuda_memory_fraction": 0.75,
+    "minimum_free_vram_mib": 10000,
+    "stop_free_vram_mib": 2048,
+    "epoch_arrays_gib": 8,
+    "maximum_run_disk_gib": 30,
+    "minimum_free_disk_gib": 40,
+    "stop_free_disk_gib": 10,
+    "windows_drive": null,
+    "windows_minimum_start_free_gib": 80,
+    "windows_stop_free_gib": 50,
+    "poll_seconds": 2
+  },
+  "kind": "sasrec_frozen_fold_evaluation",
+  "run_id": "task15_sasrec_folds_gpu_smoke_v1",
+  "mode": "smoke",
+  "fold": "all",
+  "selection_artifact": "artifacts/task15_sasrec_optuna_v1",
+  "selection_recipe_sha256": "efe301bcfa4d392e5b4ca0e05cfd592599d85a16e524cedb33129b84ed17e1a1",
+  "selection_manifest_sha256": "ea8e6339f44babaad87e6c984eb727eebbd351bec2203ab7cc5c664af65c101c",
+  "source_dataset": "artifacts/task06_candidate_datasets_v1",
+  "reuse_selection_fold_model": false,
+  "evaluation": {
+    "users_per_shard": 8,
+    "batch_size": 64,
+    "item_chunk_size": 32768,
+    "als_batch_size": 128
+  },
+  "folds": [
+    {
+      "name": "rolling_2",
+      "artifact": "artifacts/task02_fold_20241130_v1"
+    },
+    {
+      "name": "canonical",
+      "artifact": "artifacts/task01_canonical_data_v1"
+    }
+  ],
+  "smoke": {
+    "context_users": 1024,
+    "training_users": 512,
+    "evaluation_users": 16,
+    "epochs": 2
+  }
+}

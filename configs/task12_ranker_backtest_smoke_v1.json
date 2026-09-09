@@ -1,0 +1,55 @@
+{
+  "kind": "task12_ranker_backtest",
+  "run_id": "task12_ranker_backtest_smoke_v1",
+  "mode": "smoke",
+  "seed": 42,
+  "paths": {
+    "task07_dataset": "artifacts/task07_ranker_dataset_v1",
+    "task08_model": "artifacts/task08_catboost_pointwise_v1/model",
+    "task08_borders": "artifacts/task08_catboost_pools_v1/borders.tsv"
+  },
+  "protocol": {
+    "selection_train_folds": ["rolling_1", "rolling_2"],
+    "selection_eval_fold": "rolling_3",
+    "canonical_train_folds": ["rolling_1", "rolling_2", "rolling_3"],
+    "canonical_eval_fold": "canonical"
+  },
+  "training": {"target_rows": 12000},
+  "quantization": {
+    "policies": ["frozen_task08", "fit_training"],
+    "border_count": 32,
+    "feature_border_type": "GreedyLogSum"
+  },
+  "selection": {"user_count": 64, "tree_counts": [4, 8, 12], "fixed_tree_count": 8},
+  "catboost": {
+    "config_id": "task12_pointwise_smoke",
+    "loss_function": "Logloss",
+    "eval_metric": "Logloss",
+    "iterations": 12,
+    "depth": 4,
+    "learning_rate": 0.08,
+    "l2_leaf_reg": 3.0,
+    "border_count": 32,
+    "random_seed": 42,
+    "task_type": "CPU",
+    "devices": "0",
+    "thread_count": 2,
+    "metric_period": 2,
+    "boosting_type": "Plain",
+    "bootstrap_type": "Bernoulli",
+    "subsample": 0.8,
+    "random_strength": 1.0,
+    "scale_pos_weight": 1.0,
+    "ignored_features": [],
+    "snapshot_interval_seconds": 1
+  },
+  "inference": {"batch_size": 8192, "final_k": 20},
+  "resources": {
+    "minimum_free_disk_gib": 2.0,
+    "minimum_available_ram_gib": 2.0,
+    "minimum_free_vram_mib": 0,
+    "maximum_dsv_gib": 1.0,
+    "cleanup_training_cache_on_success": true
+  },
+  "smoke": {"user_count": 64}
+}

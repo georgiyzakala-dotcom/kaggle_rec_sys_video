@@ -1,6 +1,563 @@
 # PROJECT_STATE
 
-Обновлено: 2026-09-03. Задача 10 завершена full LTR selection и ровно одной
+Обновление 2026-09-08: **готов runner ранкера на ALS600/SASRec600 и нового submission**.
+Команда для пользователя: `./scripts/run_task15_sasrec_ranker.sh`.
+Config: `configs/task15_sasrec_ranker_v1.json`; инструкция: `SASREC_RANKER.md`.
+Output: `artifacts/task15_sasrec_ranker_v1/submission.csv` и `metrics.json`.
+Полный запуск НЕ выполнялся; best validation остаётся Task13 D_all:
+canonical P20all/labeled `0.005077640992845437 / 0.006911912728855518`.
+Его reproduction: `./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+
+Новый pipeline: global/recency/item2item200 + ALS600 + SASRec600, cap1800,
+232features (D_all221 + SASRec11, включая cross scores для всех union pairs).
+Три CatBoost fits по1030trees/depth7/seed42: r1+r2 -> r3;
+r1+r2+r3 -> canonical; все4folds -> future. В каждом fit ожидаемые30Mrows,
+все positive hits + deterministic uniform negatives, IPW1/p, свежие32borders
+только по training rows. Full-query ranks считаются до negative sampling.
+Новый sampler отличается от Task07 hard-negative sampler; сравнивается весь pipeline.
+Future: четыре готовые full-history models/lookups/profiles Task14 переиспользуются
+по SHA256, новый SASRec обучается12epochs на полной общей history Task14.
+CV/GT не используются для fit candidates или выбора числа деревьев ранкера.
+Обе P20 на r3/canonical сравниваются с Task13 на полном target universe;
+CSV создаётся и при отрицательной delta, `improved_on_both_validation_folds`
+фиксирует результат. Автоматической отправки в Kaggle/promotion нет.
+
+Ресурсы: users_per_shard256, CPU8/BLAS1, RSS<=40GiB, GPU fractions0.7;
+G start>=155GiB/stop<50GiB, TSV<=60GiB. Кэш каждого fit удаляется после
+атомарного completed phase; портативные модели и оценки остаются.
+Ожидание6–9часов, дополнительное пиковое место80–100GiB (экстраполяция).
+VHDX не обязательно уменьшается после unlink; supervisor следит также за G.
+Log: `logs/task15_sasrec_ranker_v1.log`; resource status: `.resources.json`.
+Stop: `kill -TERM "$(cat logs/task15_sasrec_ranker_v1.pid)"`; resume той же
+командой без изменения code/config. `--stop-after-phase rolling_validation`
+позволяет сначала остановиться на завершённой оценке r3.
+Verify: `.venv/bin/python scripts/run_expanded_ranker.py --verify-only artifacts/task15_sasrec_ranker_v1`.
+
+Проверки: 7 новых synthetic tests +9ranker_backtest tests, Ruff, shell syntax/help.
+GPU end-to-end smoke `task15_sasrec_ranker_gpu_smoke_v1`:16target users,
+три модели по12trees, SASRec1epoch/32training users с full catalog,
+263.96s including publication, RSS6.95GiB, deviceVRAM6175MiB.
+CSV16x20, seen/unknown/duplicate/null/missing/extra=0; standalone verifier passed.
+CPU repeated rolling smoke: features/scores/recommendations совпали точно;
+resume completed phase после удаления training cache пропускает обучение.
+CPU end-to-end `task15_sasrec_ranker_cpu_smoke_v5` (151.57s active): stop после
+rolling_validation и resume до CSV, fit rolling_validation ровно1раз;
+отдельный verifier passed. Scores всех3ранкеров и final recs точно совпали
+с CPU v4. Smoke configs: `configs/task15_sasrec_ranker_{gpu_smoke_v1,cpu_smoke_v5}.json`.
+Bounded timing без fit: `artifacts/task15_sasrec_ranker_timing_v1/` (256users):
+train features1.61s, evaluation features1.29s, score1030trees0.49s,
+production retrieval2.96s +cross scores0.62s +features0.78s, RSS6.98GiB.
+Timing использует old221-feature ranker и smoke SASRec той же архитектуры;
+полный232-feature quality/resource result остаётся неизвестным.
+В ранних development smokes исправлены callback progress и legacy Task02
+config layout; старые smoke artifact/log IDs не являются полными экспериментами.
+
+Далее: (1) пользователь запускает full runner; (2) проверить P20/delta обоих
+folds и runtime/resources; (3) принять решение о новом submission по результатам;
+(4) при регрессии отдельно проверить ALS600+остальные200 и sampler/ranker tuning.
+
+**Предыдущий handoff: проверка полного top600.**
+
+Обновление 2026-09-08: **полный top600 выполнен пользователем; union recall проверен**.
+Artifact: `artifacts/task15_sasrec_top600_v1/`; policy `als600_sasrec600_1800`:
+ALS600 + SASRec600 + global/recency/item2item по200. Unique пары считаются один
+раз, seen/cold GT удалены. Во всех4фолдах полные200152target IDs и coverage1.0.
+
+| Fold | Positive hits / eligible pairs | Micro recall | Mean unique candidates |
+|---|---:|---:|---:|
+| rolling_1 | 292668 / 1839297 | 0.15911948967458764 | 1382.82996 |
+| rolling_2 | 315415 / 1703659 | 0.18513974921037601 | 1429.57406 |
+| rolling_3 | 346416 / 1605551 | 0.21576144264492378 | 1462.08955 |
+| canonical | 275169 / 1284148 | 0.2142813756669792 | 1442.34763 |
+
+Canonical оба200/оба300/оба600: recall0.13248862280671697 /
+0.1572824939181465 / 0.2142813756669792. Прирост600vs200=105034positive hits,
+8.179275п.п.,61.73568% relative; сумма caps1000 ->1800. При бюджете1200
+ALS600-only recall0.16668172204449955 превосходит оба300; так во всех4folds.
+«Only» относится к двум embedding sources; остальные3x200 включены.
+Overlap600 canonical: доля списка SASRec в ALS0.2256369221, Jaccard0.1271155950;
+shared hits73961, SASRec-only70566, ALS-only101989. Это overlap двух источников,
+не уникальность SASRec относительно всех пяти.
+Oracle P20 all/labeled0.06829884287941165/0.09297144916891102;
+actual P20 нового ранкера=null: ranker не обучался, promotion=false.
+Rolling_1 selection diagnostic, canonical previously opened, один seed/короткая timeline.
+
+Runtime7822.41s (около2ч10мин), fit=0, RSSpeak4.55483GiB, VRAM4294MiB.
+GPU SASRec/CPU8 ALS, прежние weights и daily histories; parent training не повторялся.
+Финальные SHA256/агрегация прошли CLI verifier; independent sums per-user counts
+совпали точно, target universe и denominator проверены по parent GT.
+Повторный расчёт: `artifacts/task15_top600_recall_review_v1/review.py`;
+рядом config.json, metrics.json, recall.csv, report.md и manifest.json.
+Четыре full top600 строки уже в experiments/results.csv; verify не дублирует их.
+Инструкция и сводная таблица: `SASREC_TOP600.md`.
+Reproduction: `./scripts/run_task15_sasrec_top600.sh` (completed не перезаписывается).
+Verify: `OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 POLARS_MAX_THREADS=8 .venv/bin/python scripts/run_sasrec_top600.py --verify-only artifacts/task15_sasrec_top600_v1`.
+
+Best ranker validation по-прежнему Task13 D_all: P20all/labeled
+0.005077640992845437/0.006911912728855518; команда:
+`./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+Для следующего ranker backtest пользователь выбрал оба600+остальные200;
+runner подготовлен, см. актуальный handoff выше. ALS остаётся более сильным
+источником при проверенных равных бюджетах; это не мешает проверить расширенный union.
+
+**Предыдущий handoff: подготовка top600 до пользовательского полного запуска.**
+
+Обновление 2026-09-08: **полные SASRec folds проверены; top600 runner готов**.
+Пользователь попросил остановить top300 и самостоятельно запустить расчёт
+ALS@600/SASRec@600. Top300 остановлен штатно (status=paused):97atomic shards
+rolling_1 в `artifacts/.task15_sasrec_top300_v1.work/`, полного результата нет.
+Полный top600 в сессии НЕ запускался. Следующая команда для пользователя:
+`./scripts/run_task15_sasrec_top600.sh`.
+Конфигурация: `configs/task15_sasrec_top600_v1.json`; инструкция: `SASREC_TOP600.md`.
+
+Новый top600 runner использует готовые SASRec GPU/ALS CPU models, fit=0,
+все200152target users каждого rolling_1/2/3/canonical. Первые200 SASRec и400 ALS
+сверяет точно с saved predictions; старые per-user metrics пересчитывает точно.
+Global/recency/item2item остаются200. Сохраняет source depths50/100/150/200/300/
+400/600, union policies в том числе оба600, оба300 и ALS600-only control при
+том же бюджете1200, raw/positive overlap200/300/400/600, обе oracle P20 и
+прежние standalone P20. Ранкер не обучается, primary unranked union P20=null.
+Новые `sasrec_top600.py`, `scripts/run_sasrec_top600.py`, launcher/configs/tests
+используют проверенный `sasrec_top300.py` для GPU retrieval и старых метрик.
+Старые model/runner файлы не менялись при подготовке top300/top600.
+
+Ориентир2,5–3часа на текущем железе: GPU smoke2048users/fold дал21,12/22,45/
+23,54/24,48s на блок, экстраполяция392блоков2,49часа. Smoke120,40s,
+RSSpeak3,88GiB/external VRAM4262MiB; projected predictions+stats5,3GiB.
+CPU8/BLAS1, RSSmax40GiB, CUDA allocator75%, run filesmax30GiB;
+G: free start80/stop50GiB. Atomic shards/folds + checkpoint identity, общий
+Task15 lock, compact logs/ресурсы и progress/ETA fold/users/SASRec/ALS batches.
+Output: `artifacts/task15_sasrec_top600_v1/{metrics.json,comparison.csv,
+source_depth_metrics.csv,overlap_metrics.csv}`; parquet candidates в
+`folds/<fold>/parts/part-*/{sasrec600.parquet,als600.parquet}`.
+Мониторинг: `tail -F logs/task15_sasrec_top600_v1.log`.
+Stop: Ctrl-C или `kill -TERM "$(cat logs/task15_sasrec_top600_v1.pid)"`;
+resume той же командой. Completed artifact не перезаписывается.
+Verify: `.venv/bin/python scripts/run_sasrec_top600.py --verify-only artifacts/task15_sasrec_top600_v1`.
+
+Прошли28tests (top300/top600/data/metrics/ALS), Ruff, --help, bash syntax,
+GPU smoke на всех4фолдах и отдельный portable CLI verifier. Tests запрещают
+fit обеих моделей и проверяют pause/resume/точный repeat, UInt64/empty GT,
+relevance/dedup/seen/cold и оба знаменателя P20. Исходный GPU predict600 для
+64users/fold точно совпал с optimized saved candidates по IDs/ranks/scores. Preflight:
+`artifacts/task15_top600_preflight_v1/{review.py,config.json,metrics.json}`.
+Smokes не пишутся в experiments/results.csv; полный top600 добавит4rows.
+
+Пользовательский `artifacts/task15_sasrec_folds_v1` прошёл verifier;
+runtime11846,36s (3ч17мин),4full targets folds. Frozen Optuna trial12/epoch12:
+d128/L100/1block/2heads/dropout0.2/batch128/negatives32/BF16/AdamW/seed42,
+lr0.0014935660033749737, weight_decay0.0002979293642858734.
+Rolling_1 reuse winner, остальные3folds fresh12epochs. Optuna выбирала recipe
+по8192target IDs rolling_1, поэтому rolling_1 selection diagnostic;
+canonical previously opened, one seed/short timeline, promotion=false.
+
+Canonical micro recalls: SASRec@200=0.053030491812470215,
+ALS@200=0.0674260287754994, baseline800=0.107002463890455,
+blend150/50=0.1045284499917455, replaceALS=0.09966608210268599,
+both200/1000caps=0.13248862280671697, ALS400/1000caps=0.1400352607331865.
+ALS400 превосходит оба200 при том же бюджете1000 во всех4folds;
+frozen blend150/50 ухудшает baseline, mean delta rolling_2/3=-0.0019218956.
+Canonical SASRec добавляет32728hits сверх всехстарых sources; у ALS остаётся
+42149hits сверх других+SASRec. Overlap200: средняя доля SASRec в ALS0.16997318,
+micro Jaccard0.09284515; shared27658, SASRec-only40441, ALS-only58927.
+Standalone SASRec P20all/labeled0.0030479335704864303/0.0041489839223047414;
+ALS0.003859816539430033/0.0052541554449250525. Итоги: `SASREC_FOLDS.md`.
+
+Best ranker validation остаётся Task13 D_all: P20all/labeled
+0.005077640992845437/0.006911912728855518; воспроизведение:
+`./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+Следующие шаги: пользователь запускает top600; проверить full artifact и
+recall300/600/overlap; сравнить оба300 с ALS600 при1200; для перспективного
+состава отдельно подготовить matched Task13 ranker backtest до promotion.
+
+**Предыдущий handoff: исправление pruning до завершения пользовательской Optuna.**
+
+Обновление 2026-09-07: **исправлен сбой Optuna при pruning, пользовательская study восстановлена**.
+Продолжить: `./scripts/run_task15_sasrec_optuna.sh` с прежними config/run_id.
+В `artifacts/.task15_sasrec_optuna_v1.work/study.sqlite3` сохранены 10 COMPLETE
+trials и trial №10 PRUNED; следующий trial №11 (нумерация с нуля).
+Причина сбоя: runner передавал `values` в `study.tell(..., state=PRUNED)`;
+Optuna запрещает значения для PRUNED/FAIL. Теперь COMPLETE получает objective,
+а PRUNED использует последний `trial.report`. Добавлены regression tests для
+всех трёх состояний, принудительного pruning и восстановления без повторного fit.
+
+Trial №10 восстановлен из его атомарного result/checkpoint и intermediate values.
+Проверены SHA256 136 защищённых файлов: веса, candidates, метрики, frozen config
+и timing не изменились; active time 9313.956607696004s сохранено. Fit не запускался.
+SQLite до/после, dry run и отчёт: `artifacts/task15_optuna_pruning_fix_v1/`.
+Разрешён только проверенный переход SHA256 самого runner через
+`configs/task15_sasrec_optuna_resume_compatibility.json`; остальные config/input/
+implementation hashes обязаны совпадать. Исходный config digest сохранён,
+совместимая правка записана в `runtime_patch.json` и попадёт в final artifact.
+Проверены 48 tests, Ruff, launcher `--help` и `bash -n`.
+
+Промежуточный лучший результат: trial №8, epoch12, policy blend_150_50,
+objective -0.0010798709422532443; улучшение union recall пока не получено.
+На selection sample rolling_1 (8192 target IDs) native SASRec recall@200
+0.03542503456903931; P20all/labeled 0.0033630371093750005/0.004139744552967694.
+Это незавершённый подбор, не canonical/ranker validation. Best validation
+остаётся Task13 D_all: P20all/labeled 0.005077640992845437/0.006911912728855518;
+команда воспроизведения: `./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+Следующие шаги: пользователь продолжает search; проверить опубликованный best
+recipe/метрики; подготовить frozen training на остальных rolling и сравнение с ALS.
+
+**Предыдущий handoff: Optuna preflight до пользовательского полного запуска.**
+
+Обновление 2026-09-07: **пользователь выполнил SASRec benchmark; Optuna runner готов**.
+Следующая команда: `./scripts/run_task15_sasrec_optuna.sh`.
+Конфигурация:`configs/task15_sasrec_optuna_v1.json`; инструкция:`SASREC_OPTUNA.md`.
+Full Optuna в сессии НЕ запускался. После его результата подготовить отдельный
+скрипт обучения frozen recipe на остальных rolling и сравнения с ALS.
+
+Benchmark `artifacts/task15_sasrec_benchmark_v1` повторно проверен:3epochs,
+346,947training users, catalog1,337,354; runtime164.83s, median epoch с windows
+49.77s, train42.37–43.28s +data7.20–7.34s, steady15.4ms/batch128.
+Peak RSS2.89GiB, torch allocated1.66/reserved1.84GiB, device sampled3700MiB.
+Retrieval128users0.604s; loss0.902/0.593/0.477. Quality metrics=null.
+
+Optuna:24sequential trials, максимум12epochs, evaluate каждые2epochs на
+фиксированных8192target IDs по hash(seed42), все empty/unknown-history users
+сохраняются. Fit — все eligible history users, full catalog; fresh weights
+seed42 каждого trial, reuse только history-only sequence cache benchmark.
+TPE перебирает d32/64/128, L25/50/100, blocks1/2, dropout0/.1/.2/.3,
+negatives32/64, log learning_rate[1e-4,3e-3]/weight_decay[1e-6,1e-3].
+MedianPruner после6completed trials, warmup4epochs; patience3evaluations;
+soft total limit8active hours, ориентир4–8h. Best epoch фиксируется по labels.
+
+Objective: прирост micro recall union при сумме source caps800. Сравниваются
+replace_als и blends ALS/SASRec150/50,100/100,50/150; остальные3sources по200.
+Add_source1000 только diagnostic. Сохранены native recall/coverage/counts,
+oracle P20, raw/positive overlap со всеми4sources и top20 P20all/labeled с
+независимым global fallback. Это selection sample, не canonical/ranker quality.
+Labels только rolling_1 `[2024-11-29T08:56:28,2024-11-30T08:56:28)`;
+source tables reuse `artifacts/task06_candidate_datasets_v1/folds/rolling_1`.
+
+Новые `sasrec_selection.py`, `scripts/run_sasrec_optuna.py`, launcher/configs/tests.
+Установлена необходимая `optuna==4.9.0`, записана в requirements.txt; существующие
+Torch/NumPy/Polars не обновлялись, pip check прошёл. Проверены45tests, Ruff,
+help/bash syntax. CPU smoke:2trials/2epochs,32training users,8eval users;
+epoch pause/resume. GPU smoke:2trials/2epochs,512training users,16eval users,
+d128/L100/full catalog; pause после trial0/resume не повторяет его fit.
+GPU torch peak3.28GiB, external device5550MiB/RSS2.76GiB. Smokes не доказывают
+качество, их обе P20=0 и standalone recall=0; запись results.csv не создавалась.
+Artifact review:`artifacts/task15_optuna_preflight_v1/{review.py,config.json,metrics.json}`.
+Все3Optuna smoke artifacts и пользовательский benchmark прошли audit.
+Independent real-data CPU repeat (`task15_sasrec_optuna_cpu_final_v1`) точно
+совпал с resume run по params/weights/candidates. Oracle policy tie-break
+использует сумму целых clipped hits: устранено влияние1ULP parallel means.
+
+Ресурсы:CPU8/BLAS1, RSS40GiB/available stop4, GPU allocator75%,
+freeVRAM start10000/stop2048MiB; собственные run files<=30GiB,
+Linux free start40/stop10GiB, Windows G:free start80/stop50GiB.
+SQLite study +atomic optimizer/RNG epoch checkpoints; завершённые trials
+не повторяются; сохраняется один best model/trial и активный optimizer.
+Результат:`artifacts/task15_sasrec_optuna_v1/{best_recipe.json,metrics.json,model/}`.
+Мониторинг:`tail -F logs/task15_sasrec_optuna_v1.log`; остановка Ctrl-C или
+`kill -TERM "$(cat logs/task15_sasrec_optuna_v1.pid)"`; resume той же командой.
+Verify:`.venv/bin/python scripts/run_sasrec_optuna.py --verify-only artifacts/task15_sasrec_optuna_v1`.
+Best validation по-прежнему Task13 D_all, P20all/labeled
+0.005077640992845437/0.006911912728855518; Task14 submission не менялся.
+
+**Предыдущий handoff: подготовка benchmark, до пользовательского запуска.**
+
+Обновление 2026-09-07: **Task15 GPU benchmark готов к пользовательскому запуску**.
+Команда: `./scripts/run_task15_sasrec_benchmark.sh` (конфигурация
+`configs/task15_sasrec_benchmark_v1.json`). Это одно обучение,3epochs на всей
+history rolling_1, d64/2blocks/2heads/L50, batch128/64negatives, BF16/AdamW.
+Full benchmark в сессии НЕ запускался. По запросу пользователя Optuna готовится
+отдельно после его замера, selection только rolling_1/target следующего дня;
+после freeze — обучение на остальных rolling и сравнение recall/ALS overlap.
+Подробная инструкция: `SASREC_BENCHMARK.md`; первоначальный план и критерии
+сравнения: `SASREC_PLAN.md`. Статус Task15 `[~]`, качество ещё не измерено.
+
+Новые `sasrec_data.py`/`sasrec_model.py` используют общие Candidate interfaces,
+immutable daily history, deterministic UInt64/Int32 mappings, right padding,
+last-valid selection, PAD=0, pre-norm/final LayerNorm, tied embeddings и
+sampled BCE. Полные catalog logits при обучении не создаются. Epoch — один
+случайный endpoint/window на eligible user, а не полный перебор всех prefixes.
+Негативы исключают все seen history pairs; retrieval exact/chunked, tie-break
+по item_id. Portable model хранит history SHA, loader отвергает другой fold.
+Обычный PyTorch достаточен; уже установленный torch2.13.0+cu130 закреплён в
+requirements.txt и проверен на RTX5070Ti. Зависимости не устанавливались.
+
+Runner: `scripts/run_sasrec_benchmark.py`, внешний supervisor
+`scripts/task15_resources.py`. Progress/ETA epochs/windows/batches, plain rotating
+logs, atomic optimizer/RNG checkpoints и resume на границе epoch. Лимиты:
+CPU8/BLAS1, RSS40GiB/available stop4, CUDA allocator75%/freeVRAM stop2048MiB,
+run files12GiB, Linux free start25/stop10GiB, Windows G:start70/stop50GiB.
+Epoch negatives находятся в RAM, budget8GiB; history/validation не изменяются.
+Вход:`artifacts/task02_fold_20241129_v1/history_daily.parquet`, cutoff
+2024-11-29T08:56:28, next-day end2024-11-30T08:56:28. Labels не читаются.
+
+Проверены38tests (18SASRec +20data/metrics/candidate), Ruff, --help и bash syntax.
+Итоговый real-data GPU smoke:`artifacts/task15_sasrec_gpu_smoke_final_v1`,
+1024training users/2048context, весь catalog1,337,354items,2epochs по8batches.
+Steady step15–16ms, torch peak allocated1.66GiB, external sampled RSS2.42GiB /
+device3692MiB. Independent CPU/GPU repeats и GPU pause/resume после epoch1
+дали точное совпадение weights/candidates. Все5smoke artifacts прошли portable
+verify; полная RAM/скорость всего training universe пока не измерены.
+Audit:`artifacts/task15_benchmark_preflight_v1/{review.py,config.json,metrics.json}`.
+Smokes не являются quality experiments и не записаны в results.csv.
+Обе precision_at_20_* и candidate_recall=null; best остаётся Task13 D_all ниже.
+
+После запуска читать `artifacts/task15_sasrec_benchmark_v1/metrics.json` и
+`logs/task15_sasrec_benchmark_v1.log`; внешний monitor — одноимённые
+`.resources.json`/`.resources.log`. Остановка Ctrl-C или
+`kill -TERM "$(cat logs/task15_sasrec_benchmark_v1.pid)"`; resume той же командой.
+Проверка без fit: `.venv/bin/python scripts/run_sasrec_benchmark.py --verify-only artifacts/task15_sasrec_benchmark_v1`.
+Ориентир3–6min для3epochs предварительный; после полного benchmark использовать
+его измерения для оценки Optuna. Полные fold quality metrics в этот этап не входят.
+
+**Исторический planning review, до реализации:**
+
+Bounded CPU review: `artifacts/task15_sasrec_review_v1/review.py`, `config.json`,
+`metrics.json`. В присланных blocks left padding создаёт NaN на pad queries,
+второй block распространяет их на valid states; Xavier перезаписывает PAD row,
+right padding требует last-valid gather. Полный logits tensor B256/L50 при
+canonical catalog1,810,005 занимает86.308GiB FP32; нужны sampled loss и chunked
+retrieval. Проверены metadata и доступность всех16Task06source/model paths,
+без повторного fit или полного пересчёта candidate metrics. На том этапе GPU
+не проверялся из-за sandbox NVML restrictions; позже bounded GPU smokes выше
+выполнены с разрешённым доступом. Два CPU review дали идентичный JSON;
+20 существующих data/metrics/candidate tests прошли. Это planning review,
+не запись results.csv. Команды проверок сохранены в конце `SASREC_PLAN.md`.
+
+**Уточнение устаревшего Task14 handoff ниже:** full artifact
+`artifacts/task14_full_fit_v1/` уже опубликован, submission существует,
+его SHA256 совпал с metrics:
+`9df8f9e554a8f69fabc7c234c87c88ae81c7cfc243be6074b446c27eeddc844d`.
+Есть строка results.csv; runtime3678.74s, обе P20/recall=null, validation_reference
+указывает Task13. Повторный полный semantic verifier и leaderboard не проверялись
+в этой задаче. Task14 full-history weights не подходят для rolling evaluation.
+Лучший validation результат по-прежнему Task13 D_all:
+P20all/labeled `0.005077640992845437 / 0.006911912728855518`,20326hits.
+ALS используется generator/cross-score/history profiles; решение убрать
+ALS candidates не равнозначно отказу от обучения ALS.
+
+Обновление 2026-09-05: **Task14 подготовлен для внешнего полного запуска**
+по запросу пользователя: новый submission с лучшим рецептом Task13, с обучением
+всех production моделей, а не только ранкера. Full run в сессии НЕ запускался.
+Команда: `./scripts/run_task14_full_fit.sh configs/task14_full_fit_v1.json`.
+Ожидаемый файл: `artifacts/task14_full_fit_v1/submission.csv`; пока его нет.
+Инструкция: `PROFILE_FULL_FIT.md`, notebook
+`research/14_full_fit_history_profiles.ipynb`.
+
+Новый `scripts/run_profile_full_fit.py` переиспользует проверенные Task12/13
+sampling/profile/quantization компоненты и Task11 production pipeline. Новый
+CatBoost D_all:221features/1030trees/fresh32borders, примерно30m training rows
+с IPW и всеми positives, теперь из rolling_1+rolling_2+rolling_3+canonical.
+Historical Task06/07 fold models/candidates/features переиспользуются;
+profile scalars пересчитываются строго из ALS/history своего фолда.
+Для production все raw events агрегируются в новый full-history snapshot;
+global/recency/item2item/ALS обучаются с нуля, пересчитываются201features и20
+profile scalars из нового полного ALS. Full-history ALS в training folds
+не применяется. Кандидаты200/source,total800; inference2048users/shard.
+
+Лимиты прежние: CPU8, BLAS1, RAM RSS40GiB, availableRAM start38/stop4GiB,
+GPU0/gpu_ram_part0.70, freeVRAM start13000/stop2048MiB;
+Linux free start110/stop15GiB, G:start160/stop50GiB. Внешний supervisor2s,
+progress/ETA, native heartbeat30s, rotating logs, checkpoints и snapshots.
+Оценка времени1.5–2.5h, прирост диска60–100GiB. G: после подготовки около207GiB
+free; дополнительная очистка или diskpart для старта сейчас не требуется.
+Fused candidate/features/inference сохраняет top20/diagnostics по шардам;
+полная production feature matrix на диске не создаётся.
+
+Проверены165unit tests, Ruff/help/bash syntax, real-data CPU smoke64users/12trees,
+pause/resume после первого inference shard (ranker и все4candidate fits skipped),
+независимый CPU repeat с точным совпадением CSV SHA256
+`f064596bff1e05e3e3379929a6fc3998415cc15961f449a998062f97a15a9f23`.
+Artifacts:`task14_full_fit_cpu_smoke_v2`, `task14_full_fit_cpu_repeat_v2`.
+GPU smoke64users/12trees/depth7 также прошёл с прежним supervisor:
+`task14_full_fit_gpu_v2`, sampled peak device VRAM3935MiB. Все три artifacts
+прошли full top20 semantics, source-fit provenance и portable/profile verify.
+На CPU repeat искусственно остановлена публикация после полного staging;
+CLI `--publish-only` успешно завершил её без fit/predict, сохранив training hashes.
+Начальный smoke_v1 поймал ошибку записи списка в dict-only JSON writer;
+исправлено до передачи full runner. Промежуточная проверка конфигурации окон
+также исправлена: используются действительные поля HistoryFeatureConfig.
+Smokes не являются quality experiments и не записываются в results.csv.
+Отчёт проверок:`artifacts/task14_preflight_review_20260905_v1/metrics.json`.
+После verify удалены только созданные в этой задаче восстановимые work caches
+четырёх smoke attempts:12.38GiB. Published CPU/GPU artifacts сохранены;
+config/checkpoint/timing/operation metadata архивированы в review. Логи не удалены.
+
+После внешнего запуска: проверить artifact через `--verify-only`, сравнить CSV
+с Task11 и просмотреть full-history/shard/resource diagnostics; затем пользователь
+сможет загрузить новый CSV на Kaggle. Рецепт имеет canonical P20all/labeled
+0.005077640992845437/0.006911912728855518, но у full refit нет будущих labels:
+его P20 и candidate_recall записываются как null, метрики Task13 отдельно в
+validation_reference. Измерение leaderboard и устойчивости по дням остаётся
+следующим шагом. User Makefile не изменён; зависимости не добавлены.
+
+Обновление 2026-09-05: **Task13 завершён и проверен**, новый best canonical run —
+`artifacts/task13_history_profiles_v1`, вариант `D_all`, 1,030 trees, 221 features.
+P20 all/labeled `0.005077640992845437 / 0.006911912728855518`, 20,326 hits:
++281 (+1.4018%) к Task12 и +543 (+2.7448%) к matched A_base control30m.
+Исходная команда пользовательского full run:
+`./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+Описание: `HISTORY_PROFILES.md`; команды Windows/DiskPart: `DISK_CLEANUP.md`.
+Runtime 4,464.56s (74.41min), peak RSS31.62GiB. Прирост измерен на прежнем
+canonical дне; устойчивость по дням/повторным GPU fits ещё не проверена.
+Submission Task11 пока остаётся прежним.
+
+На публикации full run упал из-за точного сравнения float: labeled score
+0.006911912728855518 против 0.0069119127288555186, разница1ULP (8.67e-19).
+Исправлен verifier: integer hits/target/labeled counts проверяются точно,
+P20 сверяется с `hits/(20*users)` с допуском32ULP. Training/features не изменены.
+Добавлен CLI `--publish-only`, который проверяет полностью готовый staging,
+его связь с исходными checkpoints/frozen winner и атомарно завершает публикацию.
+Восстановление выполнено за1.56s **без fit и без regeneration predictions**:
+`OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 POLARS_MAX_THREADS=8 .venv/bin/python scripts/run_history_profiles.py --config configs/task13_history_profiles_v1.json --publish-only`.
+Исходные config/implementation hashes и метрики сохранены, новый verifier
+отдельно записан в artifact/publication_recovery.json. CSV содержит одну строку.
+Проверка готового результата:
+`OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 POLARS_MAX_THREADS=8 .venv/bin/python scripts/run_history_profiles.py --verify-only artifacts/task13_history_profiles_v1`.
+Повторять full command для этого run ID не нужно: artifact уже опубликован.
+
+Recovery review: `artifacts/task13_publication_review_20260905_v1/metrics.json`.
+Независимо пересчитаны обе P20 и counts всех четырёх rolling_3 вариантов и
+canonical winner/control; проверены checksums, frozen selection, exact top20,
+известные unseen items и portable repeat. Пройдено158tests, включая округление,
+отклонение неверных counts/метрик, no-fit publication recovery и отказ при
+corrupted model; три прежних real-data smoke artifacts прошли новый verifier.
+Rolling hits A/B/C/D:28035/29077/29069/29095. Все profile variants лучше A;
+преимущество D над B — только18hits, отдельный вклад каждого event-profile пока
+не установлен. Canonical matched A:19783hits, P20all/labeled
+0.0049419940844957835/0.006727264071383879. Full work cache сохранён для анализа.
+
+Task13 добавляет 20 скаляров из четырёх ALS-профилей (positive/like/favorite/
+long_watch), mean unit item vectors по уникальным items, без передачи координат
+в CatBoost. A/B/C/D сравниваются на всех target users rolling_3 при фиксированных
+1,030 trees. Общие строки/IPW/train-only borders=32 и единый Pool на 221 feature;
+группы переключаются через ignored_features. После freeze winner: canonical
+refit и отдельный matched A_base control. Full training budget 30m вместо 46m
+из-за памяти; сравнение с Task12 включает изменение sampling.
+
+Новых численных лимитов пользователя в доступных файлах не найдено; вопрос о
+лимитах был отправлен, ответа на момент подготовки нет. Приняты параметры:
+CPU8/BLAS1, GPU0 gpu_ram_part=0.70; preflight available RAM>=38GiB,
+VRAM>=13000MiB, Linux free>=110GiB, G: free>=160GiB; внешний supervisor
+останавливает worker при RSS>40GiB, available RAM<4GiB, free VRAM<2048MiB,
+Linux free<15GiB или G: free<50GiB. Poll2s; TERM/KILL работает даже во время
+нативных CatBoost calls. Возможен короткий пик между опросами; kernel cap нет.
+Первоначальная оценка full runtime была2–3h, резерв4h; фактически74.41min.
+
+Очистка: штатный Task11 verify+cleanup подтвердил все checksums, portable model,
+submission roundtrip и full top20, затем удалил `.task11_full_fit_v1.work`
+(70.31GiB). Published Task11 и все входы сохранены. Отчёт:
+`artifacts/task13_disk_cleanup_20260905_v1/`. Windows G: до compaction имеет
+109.01GiB free, Linux deletion не уменьшил VHDX. TRIM выполнен, WSL не остановлен;
+команды compaction оставлены пользователю, иначе завершится Codex-сессия.
+**Не удалять `.task05_implicit_als_v1.best-model`: Task06 rolling_3 ссылается на
+модель в versions/ этой директории.**
+
+До полного запуска Task13 был проверен: 152 tests, Ruff, shell syntax/CLI help, CPU pause/resume,
+независимый CPU repeat (точное равенство всех четырёх rolling и canonical top20),
+GPU smoke 64 users/12 trees/depth7. Artifacts:
+`task13_history_profiles_smoke_v1`, `task13_history_profiles_cpu_repeat_v1`,
+`task13_history_profiles_gpu_smoke_v1`; все три прошли portable verify и full
+top20 semantics для своего smoke universe. CPU P20 all/labeled
+0.0023437500000000003/0.003488372093023256, GPU
+0.0015625/0.002325581395348837; это не quality experiments и не CSV full runs.
+Диагностика: `artifacts/task13_preflight_review_20260905_v1/` — покрытие history
+positive 99.93%, long_watch 99.48%, like15.74%, favorite9.42%; benchmark200k
+candidate rows, ~257650rows/s. Candidate recall по существующему union10.70%.
+Пользовательский `Makefile` не изменён. Новые зависимости не добавлялись.
+После проверки удалены только восстановимые work caches трёх Task13 smoke
+запусков (~9.3GiB); их published artifacts и verification.json сохранены.
+После подготовки free был Linux710.36GiB, G:109.01GiB; в конце full run
+Linux677.15GiB, G:207.61GiB. TRIM отметил458.3GiB свободных extents;
+это не объём дополнительно удалённых данных и не обещание прироста места G:.
+
+Исторический результат: 2026-09-05 после проверки full Task12. Тогда лучшим
+canonical run стал `task12_ranker_backtest_v1`: P@20 all/labeled
+`0.005007444342299852 / 0.006816357898745886`, 20,045 hits. Прирост над Task08
++877 hits (+4.5753%). Победитель `fit_training`, 1,030 trees; это validation
+baseline дальнейшей работы, а текущий competition submission остаётся Task11.
+Исходная команда выполненного пользователем run:
+`./scripts/run_task12_ranker_backtest.sh configs/task12_ranker_backtest_v1.json`.
+Runner сравнивает frozen/fresh quantization при явных 32 borders и выбирает
+tree count по P@20 на полных candidate lists 16,384 ID-sampled users rolling_3.
+Selection train = rolling_1+rolling_2; после фиксации winner refit на
+rolling_1+rolling_2+rolling_3 и одна canonical оценка. Candidates и 201 features
+переиспользуются из Task07. Full runtime 4,970.11 s (82.84 min), peak RSS
+47,074.45 MiB (45.97 GiB). Task12 status `[x]`; запись в results.csv уже
+создана runner, review не дублирует её. Полный artifact защищён от overwrite.
+Полная инструкция, ресурсы, log/output/stop/resume: `RANKER_BACKTEST.md`.
+Независимый review: `artifacts/task12_review_20260905_v1/findings.md`,
+`metrics.json`, `review.py`. Проверены 27 file checksums, обе метрики двух
+folds, все top-20 semantics, portable probe и implementation hashes; 142 tests
+прошли повторно. Canonical paired-user bootstrap 95% interval delta all:
+`[0.0001743675, 0.0002642991]`. На 183,768 rolling_3 users вне selection
++242 hits (+0.95%). Bootstrap не учитывает смену дня, зависимость users и
+повторные GPU fits; canonical уже использовался ранее.
+
+Вклад исправлений полностью не разделён: fresh/frozen при 1,030 trees дали
+2,223/2,195 selection hits, лучшие точки policies — 2,223/2,212. Помимо
+квантования изменились folds и sampling. Старые 1,030 trees не оказались
+ошибкой: P@20 выбрал их снова, против 1,000 trees выигрыш всего два hits.
+User 72h share features в canonical refit получили 32 borders, деревья
+используют 11/12 вместо 1/1 у Task08. Candidate recall остался 10.70%; доля
+использованных oracle hits выросла до 14.6003%. Следующий этап — отдельные
+ablations candidate-conditioned history features на том же candidate union.
+
+Проверки Task12: 142 tests, включая synthetic end-to-end pause/resume и
+контроль отсутствия canonical при selection. Real-data CPU smoke на 64 users,
+максимум 12 trees, опубликован в `artifacts/task12_ranker_backtest_smoke_v1/`.
+Resume пропустил 16 готовых операций. Независимый `--verify-only` подтвердил
+checksums, portable inference, exact top-20 и обе метрики: smoke P@20
+all/labeled `0.0023437500000000003 / 0.003488372093023256`, 3 hits, 43 labeled
+из 64 target users. Runtime двух частей 7.42 s, peak RSS 956 MiB.
+Smoke не добавлен в `experiments/results.csv` и не сравним с full runs.
+Независимый CPU repeat `task12_ranker_backtest_cpu_repeat_v1` точно повторил
+rolling/canonical recommendations и selection curves. Ограниченный GPU smoke
+`task12_ranker_backtest_gpu_smoke_v1` (64 users, depth 7, максимум 12 trees)
+прошёл с выбранными 4 trees: P@20 all/labeled
+`0.0046875 / 0.006976744186046512`, 6 hits, 7.37 s, peak RSS 1,194 MiB.
+Его первый preflight внутри sandbox получил NVML access denied; тот же
+bounded run с доступом к GPU успешно завершён. Оба дополнительных artifacts
+прошли независимый `--verify-only`. Shell syntax, CLI help, Ruff и code cells
+нового notebook проверены. Эти проверки предшествовали полному Task12.
+
+Final artifact
+`artifacts/task11_full_fit_v1/` уже опубликован: четыре training folds,
+201 features, fixed 1,030 trees, новый full-history fit candidate models.
+Пользователь сообщил второе место на соревновании; точный внешний score пока
+не сохранён. Task08 — прежний canonical baseline с P@20 all/labeled
+`0.004788360845757224 / 0.006518131614026497`; теперь его превзошёл Task12.
+Task11 нельзя оценивать на canonical: эти labels вошли в final training.
+Исходная команда final run:
+`./scripts/run_task11_full_fit.sh configs/task11_full_fit_v1.json`;
+существующий artifact защищён от overwrite. Исторический статус Task11 в
+ROADMAP/results.csv ещё не сверялся заново полным `--verify-only`; наличие
+его финальных файлов и метрик подтверждено аудитом.
+
+Исторический аудит до Task12: `artifacts/repository_audit_20260904_v1/findings.md`,
+`config.json`, `metrics.json`, воспроизводимый `audit.py`. В рамках аудита
+model fit не было; последующая проверка обучения описана выше.
+133 unit tests прошли; timestamps проверены на 1,024 sampled users,
+Task08/09 hits независимо пересчитаны из saved predictions. Основные findings:
+
+- Candidate recall только `0.107002463890455`; у 54.714% labeled users нет
+  позитивов в union. Task08 использует 13.9615% доступных oracle hits.
+- Final quantization не полностью frozen: отсутствующие в input_borders
+  признаки достраиваются, `pipeline.py` не передаёт border_count. В production
+  item_daily_row_share_72h имеет 36 используемых borders. Две user 72h share
+  features сохраняют только threshold 0.5, хотя full-history target lookups
+  содержат 16,342 / 17,855 различных значений. Влияние исправления на score
+  ещё не измерено.
+- dt=min сохраняет daily contract, но искажает last-event/6h features и seeds:
+  80/1,024 users имеют неточный last interaction, у 47 меняется top-5 seed set.
+  Потеря positive daily groups через 6h boundary в sample около 0.91%.
+- Pointwise early stopping выбирает sampled Logloss, не P@20. LTR не передаёт
+  object IPW при том же неравномерном sampling; проигрыш Task10 нельзя
+  приписать исключительно objective. Multi-fold final recipe отдельно
+  walk-forward не оценивалась.
+- Выбор Task08 вместо rolling winner Task09 использует открытый canonical;
+  разница 67 hits неотличима от нуля по приближённому paired-user 95% interval.
+  Canonical остаётся известной диагностикой, не новым нетронутым holdout.
+
+Историческая сводка на 2026-09-03: Задача 10 завершена full LTR selection и ровно одной
 canonical оценкой frozen winner. Rolling winner `s40_l2_leaf_reg_10` использует
 `QuerySoftMax:beta=2`; mean P@20 labeled равен `0.0047389716`, а canonical
 P@20 all/labeled — `0.0028803110 / 0.0039208085` (`11,530` hits). Это
@@ -180,7 +737,38 @@ split из `data/` не использовался.
 
 ## Current best run
 
-`task08_catboost_pointwise_v1` — текущий best run. Это первый fixed
+`task13_history_profiles_v1`, вариант `D_all`, 221features,1030trees,
+fresh train-only32borders, около30m sampled training rows с positives/IPW.
+Canonical P20all/labeled `0.005077640992845437 / 0.006911912728855518`,20326hits;
+candidate recall `0.107002463890455`, union source200/total800 не изменён.
+Selection train rolling_1+rolling_2, evaluation rolling_3; canonical refit
+train rolling_1+rolling_2+rolling_3. Команда исходного run:
+`./scripts/run_task13_history_profiles.sh configs/task13_history_profiles_v1.json`.
+Проверка готового artifact:
+`OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 POLARS_MAX_THREADS=8 .venv/bin/python scripts/run_history_profiles.py --verify-only artifacts/task13_history_profiles_v1`.
+Full-history counterpart уже существует в Task14; его будущие metrics неизвестны.
+
+### Исторический comparator Task12
+
+`task12_ranker_backtest_v1`: fresh train-only quantization, border_count=32,
+1,030 trees, depth 7, lr 0.08, Logloss, seed 42, 201 features. Selection train
+rolling_1+rolling_2, выбор на 16,384 ID-sampled users rolling_3; canonical refit
+rolling_1+rolling_2+rolling_3, 46,008,034 training rows и 488,670 positives,
+полные inverse sampling weights. Canonical P@20 all/labeled
+`0.005007444342299852 / 0.006816357898745886`, 20,045 hits.
+Candidate recall/coverage/oracle не изменились относительно Task08 ниже.
+Модель: `artifacts/task12_ranker_backtest_v1/model/`, SHA-256
+`e9522e6536068a55618fafd862ba02c0c93e8fa795c7b6ea94e255615a0ca83e`.
+Команда исходного run:
+`./scripts/run_task12_ranker_backtest.sh configs/task12_ranker_backtest_v1.json`.
+Проверка:
+`OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 POLARS_MAX_THREADS=8 .venv/bin/python scripts/run_ranker_backtest.py --verify-only artifacts/task12_ranker_backtest_v1`.
+Для следующего full-history fit нужен отдельный run с четырьмя training
+folds и проверенной quantization policy; текущий Task11 не изменён.
+
+### Исторический comparator Task08
+
+`task08_catboost_pointwise_v1` — предыдущий best run. Это первый fixed
 pointwise baseline, а не результат hyperparameter selection: train fold
 `rolling_2`, early stopping fold `rolling_3`, binary `Logloss`, `201`
 features, depth `7`, learning rate `0.08`, seed `42`, GPU. CatBoost сохранил
@@ -559,8 +1147,8 @@ path.
 - Все canonical models обязаны читать общий `history_daily.parquet` через
   model-specific loader. Validation artifact не является fit input; любые
   fold-specific user/item features строятся только из history.
-- Final-fit aggregate полного raw history ещё не создан: он понадобится после
-  локальной проверки моделей и должен использовать тот же daily contract.
+- Final-fit aggregate и submission уже созданы в `artifacts/task11_full_fit_v1/`;
+  см. `MODEL_EXPLAIN.md` и актуальную сводку аудита выше.
 - Temporal scores используют `dt=min(raw timestamp)` daily user-item row.
   Поэтому 6-hour score — окно по первому timestamp агрегированной строки, а не
   точное event-level окно; `raw_views` сохраняет raw event count строки,
@@ -597,14 +1185,12 @@ path.
   artifact — около `192 MiB`. Удалённые внутри WSL блоки остаются частью
   `G:\\WSL\\Ubuntu\\ext4.vhdx`, пока VHDX отдельно не compact-нут из Windows,
   но повторно доступны Linux и не требуют нового расширения VHDX.
-- Submission пока не создавался. Specification подтверждена пользователем
-  2026-09-03: CSV с header `user_id,item_ids`, одна строка на target user,
-  максимум 20 recommendations; `item_ids` сериализуется как bracketed list,
-  например `123,"[5678, 3456, 6789]"`. Task 11 должен реализовать CSV
-  writer и round-trip parser/validation; внешняя отправка всё ещё требует
-  отдельного явного разрешения.
-- Каталог `.git` в workspace не содержит Git metadata, поэтому `git status`
-  недоступен.
+- Submission Task11 использует подтверждённую schema `user_id,item_ids` с
+  bracketed list. Published metrics содержат 200,152 users, ровно 20 items,
+  нулевые seen/unknown/null/duplicate counts и portable_repeat_equal=true.
+  SHA-256: `100613900ba1bb2660a5c32e3245790be6ccd9c4aa9dab382fb625c389aeea46`.
+- Git доступен. Перед аудитом единственным untracked файлом был пользовательский
+  `Makefile`; он не изменён.
 - От остановленного первого запуска остался незавершённый staging
   `artifacts/.task05_implicit_als_v1.staging-9748468e4d2546eea62283fffb38f2e7/`
   размером около 2.5 MiB с тремя fixed-source union-hit caches. Он не входит в
@@ -621,14 +1207,18 @@ path.
 
 ## Следующие шаги
 
-1. Перейти к Task 11 с pointwise Task 08 architecture как текущим лучшим
-   canonical вариантом; Task 09 `s12_pos_weight_16` остаётся честным
-   protocol-selected comparator, но не заменяет Task 08 по canonical.
-2. Создать full-history daily aggregate и выполнить отдельные final fits, не
-   используя последний full-history срез как supervised labels следующего дня.
-3. Не продолжать tuning по уже открытому canonical Task 10; любой новый
-   ranking experiment должен быть заранее зафиксирован и выбираться только по
-   rolling folds.
-4. Реализовать и независимо проверить submission serializer для schema
-   `user_id,item_ids`; не отправлять файл на Kaggle без отдельного явного
-   разрешения.
+1. Пользователь запускает `./scripts/run_task15_sasrec_optuna.sh`; после результата
+   проверить `best_recipe.json`, `trials.json`, обе P20, recall/ALS overlap,
+   положителен ли equal-budget gain и не упирается ли best epoch в budget12.
+2. Freeze выбранные параметры/epoch/policy. Selection sample не использовать
+   как доказательство улучшения на других днях; сначала проверить перенос.
+3. После Optuna freeze recipe/epochs/budget, подготовить отдельный launcher
+   обучения на остальных rolling и canonical diagnostic; reuse Task06
+   models/candidates без повторного fit. Не выбирать параметры по canonical.
+4. Сравнить ALS/SASRec positive overlap и incremental union recall при одинаковом
+   budget; для перспективного варианта сделать matched Task13 ranker backtest.
+   Разделить отказ от ALS generator и от всех ALS-derived features.
+5. По итогам freeze решения подготовить отдельный новый full-history run.
+   Task13 остаётся validation baseline, Task14 submission уже существует;
+   текущие artifacts не перезаписывать, новые long runs в сессии не запускать
+   без точного запроса пользователя.
