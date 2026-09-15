@@ -1,5 +1,66 @@
 # PROJECT_STATE
 
+Обновление2026-09-09: **Task15 expanded ranker завершён; подготовлена очистка диска**.
+Artifact `artifacts/task15_sasrec_ranker_v1/`, submission200152x20:
+`submission.csv` SHA256 `8c92e29077507dc87cf34fdcd0d925186c97b39a5b8e26a28c4c2bc4e8a4fe36`.
+Новый лучший проверенный локальный результат (canonical уже открывался):
+
+| Fold | P20 all targets | P20 labeled users | Hits | Delta all vs Task13 |
+|---|---:|---:|---:|---:|
+| rolling_3 | 0.007672918581877774 | 0.009515415499764554 | 30715 | +0.00040469243375035064 |
+| canonical | 0.005333946200887327 | 0.007260806877227347 | 21352 | +0.00025630520804188935 |
+
+Canonical +5.0477% relative, rolling_3 +5.5680%; future/leaderboard labels неизвестны.
+Union recall прежний: r3=0.21576144264492378, canonical=0.2142813756669792.
+Reproduction: `./scripts/run_task15_sasrec_ranker.sh` (completed не перезаписывается).
+Verify: `.venv/bin/python scripts/run_expanded_ranker.py --verify-only artifacts/task15_sasrec_ranker_v1`.
+Actual active runtime16480.28s (~4ч35мин), RSSpeak33.53GiB,
+deviceVRAMpeak12186MiB. Обе full validation rows уже в experiments/results.csv.
+Полный verifier повторно прошёл при dry-run cleanup: hashes, portable model,
+P20 из сохранённых recommendations/GT, CSV round trip, seen/unknown/duplicate/
+null/missing/extra=0. Новое обучение в этой сессии не запускалось.
+
+Очистка: `./scripts/cleanup_task15_ranker.sh` (preview),
+`./scripts/cleanup_task15_ranker.sh --apply` (только exact completed work).
+Codex не удалял реальные пользовательские кэши и не останавливал WSL;
+последующие пользовательские действия очистки здесь не перепроверялись.
+Work содержит1689files,4.385GiBunique, но реально освобождаемыеfileblocks~0.254GiB:
+4.133GiB связаны hard links с retained artifacts. Большие training pools/TSV
+уже удалены runner; повторное rm не вернёт их размер ещё раз.
+Output, raw data, остальные runs и parent fold/sequence caches сохраняются.
+Cleanup проверяет completed artifact и owner/checkpoint, удерживает runner locks,
+отказывает на symlinks/unknown root entries, имеет file progress и resume через
+`artifacts/.task15_sasrec_ranker_v1.cleanup-trash` + audit receipt.
+Отчёт применения: `artifacts/task15_sasrec_ranker_v1_cleanup_v1/`.
+
+G: сейчас~114GiB free при~606GiB free внутри Linux; Windows registry подтвердил
+Ubuntu/WSL2 и `G:\WSL\Ubuntu\ext4.vhdx` (~415.12GiB file length).
+`scripts/compact_wsl_disk.ps1` по умолчанию preview; -Apply из локальной
+Windows-копии в elevated PowerShell делает fstrim, shutdown всех WSL и compact
+отключённого VHDX. Выполнять вручную после сохранения/закрытия Codex/WSL/Docker.
+Пользовательский -Apply 2026-09-09 остановился на `execvpe(fstrim)` до trim,
+shutdown и DiskPart. Исправлен вызов: `/usr/sbin/fstrim` вместо bare `fstrim`.
+Добавлен `-CheckPrerequisites`: только запуск `--version` через WSL.
+Из Windows реально проверены executable probe и fstrim --dry-run; оба прошли.
+Нужно заново скопировать helper в Windows `%TEMP%` с `Copy-Item ... -Force`.
+Команды copy/check/apply и monitoring: `DISK_CLEANUP.md`.
+Native compaction не тестировалась на реальном диске: она остановила бы эту сессию.
+
+Проверки helper:11synthetic tests, Ruff, bash syntax/help, реальный dry-run.
+Disposable hard-link copy CPU artifact прошла cleanup --apply с полным verifier
+до/после и повторным no-op, оригинальные artifacts сохранены;
+отчёт `artifacts/task15_ranker_cleanup_smoke_v1/`.
+Windows PowerShell Parser/реальный preview/ошибочный VHDX guard passed.
+`tests/test_compact_wsl_disk.ps1` passed: preview не вызывает WSL,
+probe использует абсолютный путь и --version, ошибка executable блокирует работу;
+WSL/DiskPart в regression подменены. Настоящие trim/shutdown/compact не запускались.
+
+Далее: (1) пользователь при необходимости удаляет exact work;
+(2) закрывает WSL и выполняет Windows compact; (3) проверяет свободное место G;
+(4) оценивает новый submission в leaderboard по собственному решению.
+
+**Предыдущий handoff: подготовка runner до полного запуска.**
+
 Обновление 2026-09-08: **готов runner ранкера на ALS600/SASRec600 и нового submission**.
 Команда для пользователя: `./scripts/run_task15_sasrec_ranker.sh`.
 Config: `configs/task15_sasrec_ranker_v1.json`; инструкция: `SASREC_RANKER.md`.
